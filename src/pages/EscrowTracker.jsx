@@ -1,164 +1,196 @@
 import React, { useState } from 'react';
 
 export default function EscrowTracker() {
-  // Mock data representing current buyer transaction lifecycle states
-  const [orders, setOrders] = useState([
-    {
-      id: "ORD-9942",
-      itemName: "Heavyweight Boxy Hoodie (Midnight Blue)",
-      vendor: "Cassydon Garms Hub",
-      amount: "₦32,000",
-      date: "June 02, 2026",
-      status: "In Vault",
-      description: "Payment locked. Awaiting package transit confirmation from merchant location."
+  const [searchTxId, setSearchTxId] = useState('');
+  const [trackedTx, setTrackedTx] = useState(null);
+  const [searched, setSearched] = useState(false);
+
+  // Mock Global Database of Secure Escrow Transactions
+  const mockEscrowDatabase = {
+    "TX-8839-LG": {
+      id: "TX-8839-LG",
+      item: "Heavyweight Boxy Hoodie (Vintage Black)",
+      amount: 28000,
+      buyer: "Deji A.",
+      seller: "Bold Enterprise",
+      status: "inspection", // milestone status node
+      dateInitiated: "2026-06-01",
+      estRelease: "Within 24 Hours"
     },
-    {
-      id: "ORD-8819",
-      itemName: "Vintage Oversized Washed Tee",
-      vendor: "Retro Threads NG",
-      amount: "₦18,500",
-      date: "May 28, 2026",
-      status: "Delivered (Inspecting)",
-      description: "Package arrived at buyer location. 24-hour verification window is active."
+    "TX-4491-ABJ": {
+      id: "TX-4491-ABJ",
+      item: "MacBook Pro M2 (16GB/512GB)",
+      amount: 1850000,
+      buyer: "Chidi O.",
+      seller: "Tech Vault NG",
+      status: "completed",
+      dateInitiated: "2026-05-28",
+      estRelease: "Funds Disbursed"
+    },
+    "TX-1029-LKK": {
+      id: "TX-1029-LKK",
+      item: "Toyota Camry 2018 SE",
+      amount: 14500000,
+      buyer: "Alhaji Musa",
+      seller: "Bold Enterprise",
+      status: "holding",
+      dateInitiated: "2026-06-02",
+      estRelease: "Awaiting Shipment Courier"
     }
-  ]);
-
-  const [disputeReason, setDisputeReason] = useState('');
-  const [activeDisputeId, setActiveDisputeId] = useState(null);
-
-  // Release payment directly to seller wallet
-  const handleReleaseFunds = (orderId, itemName) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: "Released", description: "Funds successfully moved to vendor vault. Transaction complete." } : order
-    ));
-    alert(`✅ Funds Released!\n\nYou have confirmed physical inspection of "${itemName}". Payment is now processing into the vendor's available balance.`);
   };
 
-  // Turn on structural dispute input layout
-  const initiateDisputeState = (orderId) => {
-    setActiveDisputeId(orderId);
-  };
-
-  // Finalize freezing the transaction payment pool
-  const handleSubmitDispute = (e, orderId, itemName) => {
+  const handleSearch = (e) => {
     e.preventDefault();
-    if (!disputeReason.trim()) {
-      alert("⚠️ Please specify the inspection failure reason before filing.");
-      return;
+    setSearched(true);
+    const cleanId = searchTxId.trim().toUpperCase();
+    if (mockEscrowDatabase[cleanId]) {
+      setTrackedTx(mockEscrowDatabase[cleanId]);
+    } else {
+      setTrackedTx(null);
     }
-
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: "Disputed", description: `Frozen: Under Bold review due to: "${disputeReason}"` } : order
-    ));
-    
-    setActiveDisputeId(null);
-    setDisputeReason('');
-    alert(`🚨 TRANSACTION FROZEN:\n\nAn official dispute has been filed for "${itemName}". Bold Support Agents will contact both parties to verify physical item accuracy.`);
   };
 
   return (
-    <main className="max-w-4xl mx-auto my-10 px-4 space-y-8">
+    <main className="max-w-4xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
       
-      {/* SECTION PANEL BANNER */}
-      <div className="bg-[#1E293B] border border-slate-800 rounded-3xl p-8 shadow-xl">
-        <span className="text-[10px] bg-emerald-500 text-[#0B132B] font-black tracking-widest uppercase px-2.5 py-1 rounded">
-          Secure Core Verified
-        </span>
-        <h1 className="text-2xl font-black text-white mt-2">Bold Vault Escrow Protection</h1>
-        <p className="text-slate-400 text-xs mt-0.5">
-          Your cash stays fully locked until you receive, inspect, and confirm the precise quality of your clothing items.
-        </p>
+      {/* HEADER PROTOCOL CARD */}
+      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
+            🛡️ BOLD SECURE VAULT ARRAYS
+          </span>
+          <h1 className="text-2xl font-black text-white mt-1">Escrow Ledger Audit Stream</h1>
+          <p className="text-slate-400 text-xs mt-0.5 font-medium">Verify the security status of capital commitments across public operational nodes in real time.</p>
+        </div>
       </div>
 
-      {/* TRACKING LIST GRID */}
-      <div className="space-y-4">
-        <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Active Secure Escrow Holds</h3>
-
-        {orders.map((order) => (
-          <div key={order.id} className="bg-white text-slate-900 rounded-2xl p-6 shadow-md border border-slate-200 space-y-4">
-            
-            {/* Top row details */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                  {order.id}
-                </span>
-                <h4 className="text-sm font-black text-[#0B132B] mt-1">{order.itemName}</h4>
-                <p className="text-xs text-slate-500 font-semibold">Merchant Store: <span className="underline">{order.vendor}</span></p>
-              </div>
-
-              <div className="text-left sm:text-right">
-                <p className="text-xs text-slate-400 font-bold uppercase">Escrow Value</p>
-                <p className="text-base font-black font-mono text-[#0B132B]">{order.amount}</p>
-                <p className="text-[10px] font-medium text-slate-400">Initiated: {order.date}</p>
-              </div>
-            </div>
-
-            {/* Current status info text */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <div className="space-y-0.5">
-                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                  order.status === 'Released' ? 'bg-emerald-100 text-emerald-800' :
-                  order.status === 'Disputed' ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-orange-100 text-orange-800'
-                }`}>
-                  • Status: {order.status}
-                </span>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">{order.description}</p>
-              </div>
-
-              {/* Action layout controls */}
-              {order.status !== 'Released' && order.status !== 'Disputed' && (
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <button 
-                    onClick={() => handleReleaseFunds(order.id, order.itemName)}
-                    className="flex-1 sm:flex-none bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-700 transition border-none cursor-pointer whitespace-nowrap shadow"
-                  >
-                    Confirm & Release
-                  </button>
-                  <button 
-                    onClick={() => initiateDisputeState(order.id)}
-                    className="flex-1 sm:flex-none bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-50 hover:text-red-600 transition border-none cursor-pointer whitespace-nowrap"
-                  >
-                    File Issue
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* EXPANDABLE INLINE CONTEXT: FILE DISPUTE ENGINE */}
-            {activeDisputeId === order.id && (
-              <form onSubmit={(e) => handleSubmitDispute(e, order.id, order.itemName)} className="bg-red-50/50 border border-red-200 p-4 rounded-xl space-y-3 animate-fadeIn">
-                <div>
-                  <label className="block text-[11px] font-black text-red-900 uppercase mb-1">State Inspection Defect Detail</label>
-                  <textarea 
-                    rows="2"
-                    value={disputeReason}
-                    onChange={(e) => setDisputeReason(e.target.value)}
-                    placeholder="E.g., Vendor shipped XL size instead of Medium, or the print logo arrived flawed/stained..."
-                    className="w-full px-3 py-2 rounded-xl border border-red-300 text-xs font-semibold focus:outline-none focus:border-red-500 bg-white"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => setActiveDisputeId(null)}
-                    className="bg-transparent text-slate-500 text-xs font-bold px-3 py-1.5 cursor-pointer border-none"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="bg-red-600 text-white text-[11px] font-black uppercase tracking-wider px-4 py-1.5 rounded-lg border-none cursor-pointer shadow hover:bg-red-700 transition"
-                  >
-                    Lock Payment Balance Now
-                  </button>
-                </div>
-              </form>
-            )}
-
+      {/* SEARCH CONTROL DECK */}
+      <div className="bg-[#16223F] p-6 rounded-3xl shadow-xl border border-slate-800">
+        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">
+              Input Escrow Reference Hash / Transaction ID
+            </label>
+            <input 
+              type="text"
+              value={searchTxId}
+              onChange={(e) => setSearchTxId(e.target.value)}
+              placeholder="e.g., TX-8839-LG, TX-4491-ABJ, TX-1029-LKK"
+              className="w-full px-4 py-3 rounded-xl border border-slate-700 text-xs font-mono font-bold bg-[#0B132B] text-white focus:outline-none focus:border-[#FF5A00] tracking-widest uppercase"
+            />
           </div>
-        ))}
+          <button
+            type="submit"
+            className="sm:mt-5 bg-[#FF5A00] text-white font-black text-xs uppercase tracking-wider px-6 py-3 sm:py-0 rounded-xl border-none cursor-pointer hover:brightness-110 transition h-11 shrink-0 self-end w-full sm:w-auto"
+          >
+            🔍 Audit Pipeline
+          </button>
+        </form>
       </div>
+
+      {/* TRACKING DISPATCH VIEW SCREEN */}
+      {searched && trackedTx ? (
+        <div className="bg-[#16223F] p-6 rounded-3xl shadow-xl border border-slate-800 space-y-6 animate-fadeIn">
+          
+          {/* META METRIC BAR */}
+          <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 gap-2">
+            <div>
+              <span className="text-[10px] font-mono text-slate-400 font-bold">MUTABLE RECORD NODE:</span>
+              <h3 className="text-base font-black text-white font-mono">{trackedTx.id}</h3>
+            </div>
+            <div className="text-right">
+              <span className="text-[9px] text-slate-400 font-black block uppercase">Escrow Valuation</span>
+              <span className="text-lg font-black text-[#FF5A00] font-mono">₦{trackedTx.amount.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* ASSET SPECIFICATION GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0B132B] p-4 rounded-2xl border border-slate-900 text-xs">
+            <div className="space-y-1">
+              <p className="text-slate-400 font-medium">📦 Protected Asset Entity:</p>
+              <p className="text-white font-black">{trackedTx.item}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-slate-400 font-medium">🗓️ Initialized Timestamp:</p>
+              <p className="text-white font-mono font-bold">{trackedTx.dateInitiated}</p>
+            </div>
+            <div className="space-y-1 pt-2 sm:pt-0 border-t sm:border-none border-slate-800">
+              <p className="text-slate-400 font-medium">👤 Authenticated Buyer Node:</p>
+              <p className="text-white font-bold">{trackedTx.buyer}</p>
+            </div>
+            <div className="space-y-1 pt-2 sm:pt-0 border-t sm:border-none border-slate-800">
+              <p className="text-slate-400 font-medium">🏬 Target Merchant Node:</p>
+              <p className="text-white font-bold">{trackedTx.seller}</p>
+            </div>
+          </div>
+
+          {/* VISUAL PIPELINE MILESTONE TRACKER STEPS */}
+          <div className="space-y-3">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              Milestone Security Progress Matrix
+            </label>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-center text-[10px] font-black uppercase tracking-wider">
+              
+              {/* STEP 1 */}
+              <div className={`p-3 rounded-xl border ${
+                trackedTx.status !== 'failed' ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' : 'bg-[#0B132B] text-slate-500 border-slate-900'
+              }`}>
+                💰 1. Secured Vault
+              </div>
+
+              {/* STEP 2 */}
+              <div className={`p-3 rounded-xl border ${
+                trackedTx.status === 'inspection' || trackedTx.status === 'completed' 
+                  ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' 
+                  : trackedTx.status === 'holding' ? 'bg-amber-950/30 text-amber-400 border-amber-900/60 animate-pulse' : 'bg-[#0B132B] text-slate-500 border-slate-900'
+              }`}>
+                🚚 2. Dispatched
+              </div>
+
+              {/* STEP 3 */}
+              <div className={`p-3 rounded-xl border ${
+                trackedTx.status === 'completed' 
+                  ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' 
+                  : trackedTx.status === 'inspection' ? 'bg-amber-950/30 text-amber-400 border-amber-900/60 animate-pulse' : 'bg-[#0B132B] text-slate-500 border-slate-900'
+              }`}>
+                🔍 3. In Inspection
+              </div>
+
+              {/* STEP 4 */}
+              <div className={`p-3 rounded-xl border ${
+                trackedTx.status === 'completed' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-[#0B132B] text-slate-500 border-slate-900'
+              }`}>
+                🏁 4. Released
+              </div>
+
+            </div>
+          </div>
+
+          {/* DYNAMIC SETTILEMENT MESSAGE FOOTER */}
+          <div className="p-3.5 bg-[#0B132B] border border-slate-900 rounded-xl flex items-center justify-between text-xs font-semibold">
+            <span className="text-slate-400">Next Clearance Vector:</span>
+            <span className={`font-bold ${trackedTx.status === 'completed' ? 'text-emerald-400' : 'text-amber-400'}`}>
+              ⏳ {trackedTx.estRelease}
+            </span>
+          </div>
+
+        </div>
+      ) : searched ? (
+        /* ACCOUNT MISMATCH SCREEN */
+        <div className="bg-[#16223F] rounded-3xl p-12 text-center border border-slate-800 max-w-md mx-auto animate-fadeIn">
+          <p className="text-3xl">📭</p>
+          <h4 className="text-sm font-black text-white uppercase mt-2">Transaction Identifier Not Found</h4>
+          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+            That hash parameter is missing from the public ledger matrix. Double check the character string capitalization or confirm execution paths with the vendor.
+          </p>
+        </div>
+      ) : (
+        /* INITIAL BLANK HUD GUIDE */
+        <div className="bg-[#16223F]/60 rounded-3xl p-8 text-center border border-slate-800/60 max-w-md mx-auto text-xs text-slate-400 font-medium">
+          💡 Try using one of our pre-seeded test keys above to evaluate the visual milestones framework!
+        </div>
+      )}
 
     </main>
   );
