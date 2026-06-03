@@ -1,199 +1,211 @@
 import React, { useState } from 'react';
 
-// High-Trust streetwear validation array 
-const SECURITY_IMAGES = [
-  { id: 'a', url: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=150&auto=format&fit=crop&q=60', isItem: true, label: 'Streetwear Suit' },
-  { id: 'b', url: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=150&auto=format&fit=crop&q=60', isItem: false, label: 'Server Laptop' },
-  { id: 'c', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=60', isItem: true, label: 'Sport Sneaker' },
-  { id: 'd', url: 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=150&auto=format&fit=crop&q=60', isItem: false, label: 'Smartwatch' },
-  { id: 'e', url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=150&auto=format&fit=crop&q=60', isItem: true, label: 'Premium Jacket' },
-  { id: 'f', url: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=150&auto=format&fit=crop&q=60', isItem: false, label: 'Smart Device' },
-];
-
 export default function SignUp({ setCurrentPage, setMerchantStore }) {
-  // Form Intake Fields
-  const [storeName, setStoreName] = useState('');
-  const [email, setEmail] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [location, setLocation] = useState('');
-  const [niche, setNiche] = useState("Men's Streetwear & Fast-Fashion");
-  const [cacNumber, setCacNumber] = useState('');
-  
-  // Security Tokens
-  const [simulatedOtp] = useState('7942'); // Master code for testing
-  const [userOtp, setUserOtp] = useState('');
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [isDeploying, setIsDeploying] = useState(false);
+  // Local Form States
+  const [formData, setFormData] = useState({
+    name: '',
+    niche: "Men's Streetwear & Apparel",
+    location: 'Lagos, NG',
+    whatsapp: '',
+    agreedToTerms: false
+  });
 
-  // Toggle CAPTCHA images on click
-  const toggleImageSelection = (id) => {
-    if (selectedImages.includes(id)) {
-      setSelectedImages(selectedImages.filter(item => item !== id));
-    } else {
-      setSelectedImages([...selectedImages, id]);
-    }
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
-  // Process Unified Validation Check
-  const handleSecureRegistration = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorMsg('');
 
-    // 1. Mandatory Fields Check
-    if (!storeName || !email || !whatsapp || !location) {
-      alert("❌ SECURITY ALERT: All core identity tracks must be populated.");
+    // Validations Core Check
+    if (!formData.name.trim()) {
+      setErrorMsg('Please supply a valid corporate registration or brand name.');
+      return;
+    }
+    if (!formData.whatsapp.trim()) {
+      setErrorMsg('A valid WhatsApp communication line node is required.');
+      return;
+    }
+    if (!formData.agreedToTerms) {
+      setErrorMsg('You must authorize the Escrow Operational Protocol guidelines.');
       return;
     }
 
-    // 2. Validate Token Matching
-    if (userOtp !== simulatedOtp) {
-      alert(`❌ VERIFICATION FAILURE: Invalid Phone/Email Token pin. For testing, use the simulated developer pin: ${simulatedOtp}`);
-      return;
+    // Format phone number string safely for WhatsApp direct router links
+    let cleanPhone = formData.whatsapp.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '234' + cleanPhone.substring(1);
+    } else if (!cleanPhone.startsWith('234') && cleanPhone.length === 10) {
+      cleanPhone = '234' + cleanPhone;
     }
 
-    // 3. Validate Visual Robot Blockade
-    const correctFashionIds = SECURITY_IMAGES.filter(img => img.isItem).map(img => img.id);
-    const badPicks = selectedImages.filter(id => !correctFashionIds.includes(id));
-    const accuratePicksCount = selectedImages.filter(id => correctFashionIds.includes(id)).length;
+    // Inject state configuration into global system context
+    setMerchantStore({
+      name: formData.name,
+      niche: formData.niche,
+      status: 'Verified',
+      location: formData.location,
+      whatsapp: cleanPhone
+    });
 
-    if (badPicks.length > 0 || accuratePicksCount !== correctFashionIds.length) {
-      alert("⚠️ ROBOT BLOCKADE DETECTED: You must select ONLY the 3 fashion clothing items (Suit, Sneaker, Jacket) to prove your niche authority.");
-      return;
-    }
-
-    // If all pass, initiate platform enrollment
-    setIsDeploying(true);
-    setTimeout(() => {
-      setIsDeploying(false);
-      setMerchantStore({
-        name: storeName,
-        niche: niche,
-        status: cacNumber ? "Verified Corporate Entity" : "Verified Small Merchant",
-        cac: cacNumber || "Personal/Micro-Vendor (No CAC)",
-        location: location,
-        whatsapp: whatsapp,
-        joined: "June 2026",
-        balance: "₦0",
-        escrow: "₦0"
-      });
-      setCurrentPage('store');
-    }, 1500);
+    // Advance viewport straight to merchant dashboard stream
+    setCurrentPage('store');
   };
 
   return (
-    <main className="max-w-2xl mx-auto my-12 px-4">
-      <div className="bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-200">
+    <div className="max-w-5xl mx-auto my-8 px-4 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch animate-fadeIn text-white">
+      
+      {/* LEFT ASPECT COLUMN: BRAND POSITIONING AND VALUE PROP */}
+      <div className="md:col-span-5 bg-[#16223F] border border-slate-800 rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden shadow-xl">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-[#FF5A00]/5 rounded-full transform translate-x-12 -translate-y-12" />
         
-        {/* Banner header explaining the mode */}
-        <div className="bg-slate-900 text-white rounded-2xl p-4 mb-8 text-xs font-mono border-l-4 border-[#FF5A00]">
-          <p className="font-bold text-[#FF5A00]">🛡️ BOLD SECURITY LEDGER MODE: LOCAL DEPLOYMENT</p>
-          <p className="text-slate-400 mt-1">
-            Real SMS APIs (Twilio/Termii) connect during server setup. 
-            To bypass the security guard right now, use simulated code: <span className="text-white font-black underline bg-slate-800 px-1.5 py-0.5 rounded">{simulatedOtp}</span>.
-          </p>
-        </div>
-
-        <div className="text-center mb-8 border-b border-slate-100 pb-5">
-          <span className="text-[10px] font-black tracking-widest text-[#FF5A00] uppercase bg-orange-50 px-3 py-1 rounded-md">
-            Anti-Scam Verification Console
-          </span>
-          <h1 className="text-3xl font-black text-[#0B132B] tracking-tight mt-2">Create Secure Merchant Vault</h1>
-          <p className="text-slate-500 text-xs mt-1">Zero configuration gaps. Every field below is cross-verified live.</p>
-        </div>
-
-        <form onSubmit={handleSecureRegistration} className="space-y-8">
-          
-          {/* Section 1: Data Profiles */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-wider text-[#0B132B] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#FF5A00]"></span> 1. Traceable Merchant Profile
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Brand / Store Name</label>
-                <input type="text" required value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="e.g., Cassydon Garms" className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-slate-50 font-semibold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Direct Business Email</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@domain.com" className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-slate-50 font-semibold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">WhatsApp Number</label>
-                <input type="tel" required value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="e.g., +2348100000000" className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-slate-50 font-mono font-bold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Physical Warehouse Address</label>
-                <input type="text" required value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Ikeja, Lagos" className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-slate-50 font-semibold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-            </div>
+        <div className="space-y-6 relative z-10">
+          <div className="inline-block bg-[#FF5A00] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded">
+            Merchant Protocol v2.0
           </div>
-
-          {/* Section 2: Core OTP Matching */}
-          <div className="space-y-4 border-t border-slate-100 pt-6">
-            <h3 className="text-sm font-black uppercase tracking-wider text-[#0B132B] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#FF5A00]"></span> 2. Network Token Lock
-            </h3>
-            <p className="text-slate-500 text-xs">Simulates the cryptographic security blast that prevents cloned bot numbers from parsing our sign-up engine.</p>
-            
-            <div className="max-w-xs">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Enter Received 4-Digit Code</label>
-              <input 
-                type="text" 
-                required 
-                maxLength={4} 
-                value={userOtp} 
-                onChange={(e) => setUserOtp(e.target.value)}
-                placeholder="Type 7942 here to clear simulation" 
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-800 text-center font-mono font-black tracking-widest text-lg bg-slate-50 text-[#0B132B] focus:outline-none focus:border-[#FF5A00]"
-              />
-            </div>
-          </div>
-
-          {/* Section 3: The Interactive CAPTCHA Array */}
-          <div className="space-y-4 border-t border-slate-100 pt-6">
-            <h3 className="text-sm font-black uppercase tracking-wider text-[#0B132B] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#FF5A00]"></span> 3. Sync Market CAPTCHA Blockade
-            </h3>
-            <p className="text-slate-500 text-xs">
-              Anti-bot firewall: Click and select <span className="font-extrabold text-[#0B132B]">ALL 3 Fashion Apparel items</span> below. Leave non-apparel devices unselected.
+          <div className="space-y-2">
+            <h2 className="text-3xl font-black tracking-tight leading-tight">
+              Unlock Fear-Free <span className="text-[#FF5A00]">E-Commerce</span> Infrastructure.
+            </h2>
+            <p className="text-slate-400 text-xs leading-relaxed font-medium">
+              Deploy your catalog node inside the Bold network. Instantly secure decentralized trust matrices, absolute inspection milestones, and escrow payout protection layers.
             </p>
+          </div>
+        </div>
 
-            {/* Grid display layout */}
-            <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              {SECURITY_IMAGES.map((img) => {
-                const isSelected = selectedImages.includes(img.id);
-                return (
-                  <div 
-                    key={img.id}
-                    onClick={() => toggleImageSelection(img.id)}
-                    className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-4 transition-all duration-150 select-none ${isSelected ? 'border-[#FF5A00] scale-[0.96]' : 'border-transparent hover:brightness-90'}`}
-                  >
-                    <img src={img.url} alt="Ecosystem Verification Token" className="w-full h-full object-cover" />
-                    {isSelected && (
-                      <div className="absolute inset-0 bg-[#FF5A00]/20 flex items-center justify-center font-bold text-white text-2xl shadow-inner">
-                        ✓
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+        <div className="mt-8 pt-6 border-t border-slate-800/80 space-y-3 text-[11px] font-semibold text-slate-300">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base text-[#FF5A00]">🛡️</span>
+            <span>100% Payout Settlement Vault Protection</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="text-base text-emerald-500">🤝</span>
+            <span>Direct Consumer WhatsApp Link Protocols</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="text-base text-amber-500">⚡</span>
+            <span>Instant Deployment Parameters No Code Required</span>
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT ASPECT COLUMN: INTERACTIVE INPUT FORM NODE */}
+      <div className="md:col-span-7 bg-[#16223F] border border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col justify-center">
+        <div className="mb-6">
+          <h3 className="text-xl font-black tracking-tight">Onboard Merchant Node</h3>
+          <p className="text-slate-400 text-xs font-medium mt-1">Configure your profile fields below to activate your vendor dashboard.</p>
+        </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-3 bg-red-950/40 border border-red-900/50 text-red-400 rounded-xl text-xs font-bold tracking-wide flex items-center gap-2">
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* FIELD: BRAND IDENTIFIER */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
+              Store / Business Brand Name
+            </label>
+            <input 
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="e.g., Cassydon Streetwear Hub"
+              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] rounded-xl px-4 py-3 text-sm text-white font-medium outline-none transition"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* FIELD: INDUSTRY SECTOR */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                Commerce Core Niche
+              </label>
+              <select
+                name="niche"
+                value={formData.niche}
+                onChange={handleChange}
+                className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] rounded-xl px-3 py-3 text-sm text-white font-medium outline-none transition cursor-pointer appearance-none"
+              >
+                <option value="Men's Streetwear & Apparel">👕 Men's Streetwear & Apparel</option>
+                <option value="Automotive Sourcing">🚗 Automotive Sourcing</option>
+                <option value="Premium Gadgetry & Electronics">💻 Premium Electronics</option>
+                <option value="Real Estate Development">🏢 Real Estate Properties</option>
+                <option value="Educational Mentorship">📚 Mentorship & Services</option>
+              </select>
+            </div>
+
+            {/* FIELD: HUB LOCATION */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                Operational Logistics Base
+              </label>
+              <select
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] rounded-xl px-3 py-3 text-sm text-white font-medium outline-none transition cursor-pointer appearance-none"
+              >
+                <option value="Lagos, NG">Lagos, Nigeria</option>
+                <option value="Abuja, NG">Abuja, Nigeria</option>
+                <option value="Port Harcourt, NG">Port Harcourt, Nigeria</option>
+                <option value="Remote Operations">Global / Remote</option>
+              </select>
             </div>
           </div>
 
-          {/* Submission Trigger */}
-          <button 
+          {/* FIELD: WHATSAPP WHATSAPP PIPELINE */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
+              WhatsApp Communication Routing Line
+            </label>
+            <input 
+              type="text"
+              name="whatsapp"
+              value={formData.whatsapp}
+              onChange={handleChange}
+              placeholder="e.g., 08031234567 or 2348031234567"
+              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] rounded-xl px-4 py-3 text-sm text-white font-mono font-medium outline-none transition"
+            />
+            <span className="text-[10px] text-slate-500 block font-medium">Used for direct buyer escrow negotiation routing pipes.</span>
+          </div>
+
+          {/* PROTOCOL AGREEMENT CHECKBOX */}
+          <label className="flex items-start gap-3 pt-2 group cursor-pointer select-none">
+            <input 
+              type="checkbox"
+              name="agreedToTerms"
+              checked={formData.agreedToTerms}
+              onChange={handleChange}
+              className="mt-0.5 accent-[#FF5A00] w-4 h-4 rounded border-slate-800 cursor-pointer"
+            />
+            <span className="text-[11px] text-slate-400 group-hover:text-slate-300 transition leading-relaxed font-medium">
+              I authorize the <span className="text-white font-bold">Bold.ng Escrow Matrix</span> to hold transaction capital liabilities securely until buyer clearance verification confirmation vectors match.
+            </span>
+          </label>
+
+          {/* SUBMIT EXECUTION BUTTON */}
+          <button
             type="submit"
-            disabled={isDeploying}
-            className="w-full bg-[#0B132B] text-white py-4 rounded-xl font-black tracking-wide hover:bg-slate-800 transition disabled:bg-slate-400 border-none outline-none cursor-pointer text-sm shadow-xl"
+            className="w-full mt-4 bg-[#FF5A00] text-white font-black text-xs uppercase tracking-widest py-4 rounded-xl border-none cursor-pointer shadow-lg hover:brightness-110 transition duration-200"
           >
-            {isDeploying ? "Shielding Vault & Booting Up Store..." : "Verify Identity & Launch Storefront →"}
+            🚀 Deploy Brand Node
           </button>
 
         </form>
       </div>
-    </main>
+
+    </div>
   );
 }

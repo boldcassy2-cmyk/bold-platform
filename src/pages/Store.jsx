@@ -1,189 +1,161 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-export default function Store({ merchantStore }) {
-  // Store default listings array
-  const [products, setProducts] = useState([
-    { id: 1, name: "Vintage Oversized Washed Tee", price: "₦18,500", stock: 12, plan: "Self-Managed", promoted: false, image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=400&auto=format&fit=crop&q=60" },
-    { id: 2, name: "Heavyweight Boxy Hoodie (Midnight Blue)", price: "₦32,000", stock: 8, plan: "Promoted", promoted: true, image: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=400&auto=format&fit=crop&q=60" },
-  ]);
-
-  // Inventory Input Fields
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('Self-Managed');
-
-  // Trigger Promotion Action on an existing product
-  const triggerPromotion = (productId) => {
-    setProducts(products.map(p => {
-      if (p.id === productId) {
-        alert(`🚀 Promotion Request Sent!\n"${p.name}" is being reviewed for the Bold Premium Search Grid banner.`);
-        return { ...p, plan: "Promoted", promoted: true };
-      }
-      return p;
-    }));
-  };
-
-  // Convert an asset to Bold Fulfillment
-  const transferToFulfillment = (productId) => {
-    setProducts(products.map(p => {
-      if (p.id === productId) {
-        alert(`📦 Fulfillment Handover Initialized!\nGenerate waybill to ship units of "${p.name}" to the closest Bold Hub for storage and delivery management.`);
-        return { ...p, plan: "Bold-Managed" };
-      }
-      return p;
-    }));
-  };
-
-  // Process standard form creation
-  const handleAddProduct = (e) => {
-    e.preventDefault();
-    if (!name || !price || !stock) return;
-
-    const newProduct = {
-      id: Date.now(),
-      name,
-      price: `₦${Number(price).toLocaleString()}`,
-      stock: parseInt(stock),
-      plan: selectedPlan,
-      promoted: selectedPlan === 'Promoted',
-      image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&auto=format&fit=crop&q=60"
-    };
-
-    setProducts([newProduct, ...products]);
-    setName('');
-    setPrice('');
-    setStock('');
-    alert(`📦 Success: Item added under the [${selectedPlan}] track.`);
-  };
+export default function Store({ merchantStore, items = [], setCurrentPage }) {
+  // Filter items to simulate what this specific merchant owns (or show all currently active live items)
+  const vendorItems = items; 
+  
+  // Dynamic Ledger Calculations Matrix
+  const activeCount = vendorItems.length;
+  const totalEscrowVolume = vendorItems.reduce((acc, item) => acc + item.price, 0);
+  
+  // Calculate average asset valuation node smoothly
+  const averageValuation = activeCount > 0 ? Math.round(totalEscrowVolume / activeCount) : 0;
 
   return (
-    <main className="max-w-6xl mx-auto my-10 px-4 space-y-8">
+    <main className="max-w-6xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
       
-      {/* VENDOR PROFILE HUD */}
-      <div className="bg-[#0B132B] text-white rounded-3xl p-8 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b-4 border-[#FF5A00]">
-        <div>
-          <span className="text-[10px] bg-[#FF5A00] px-2.5 py-1 rounded font-black tracking-widest uppercase">
-            {merchantStore.location ? "Independent Hub" : "Self-Managed Retailer"}
-          </span>
-          <h1 className="text-3xl font-black tracking-tight mt-1 text-white">
-            {merchantStore.name || "Cassydon Garms Hub"}
-          </h1>
-          <p className="text-slate-400 text-xs mt-1">
-            📍 Operating Location: <span className="text-white font-semibold">{merchantStore.location || "Lagos, NG"}</span> | Standard Self-Fulfillment
+      {/* HUB MASTER BRAND BANNER */}
+      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF5A00]/5 rounded-full transform translate-x-10 -translate-y-10" />
+        
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
+              Merchant Node Active
+            </span>
+            <span className="text-[9px] bg-emerald-500 text-slate-950 font-black tracking-widest uppercase px-2 py-0.5 rounded flex items-center gap-1">
+              ✓ Verified Escrow Trusted
+            </span>
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tight">{merchantStore.name || 'Bold Merchant Account'}</h1>
+          <p className="text-slate-400 text-xs font-medium">
+            Core Segment Focus: <span className="text-white font-bold">{merchantStore.niche || "Men's Streetwear & Commerce"}</span> | Operational Base: <span className="text-white font-bold">{merchantStore.location || "Lagos, NG"}</span>
           </p>
         </div>
-        <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700 font-mono text-xs text-slate-300">
-          <p>🏢 Management Mode: <span className="text-[#FF5A00] font-bold">Independent (Jiji-Style)</span></p>
-          <p className="mt-1">🔒 Registered WhatsApp: {merchantStore.whatsapp || "No Link"}</p>
+
+        {/* INTERACTION ACTION ROUTERS */}
+        <div className="flex flex-wrap gap-2 shrink-0 w-full md:w-auto">
+          <button 
+            onClick={() => setCurrentPage('addproduct')}
+            className="flex-1 md:flex-none bg-[#FF5A00] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-xl border-none cursor-pointer shadow-lg hover:brightness-110 transition"
+          >
+            ➕ Onboard Asset
+          </button>
+          <button 
+            onClick={() => {
+              const message = encodeURIComponent(`Hello Bold.ng Support, I am the manager of ${merchantStore.name || 'Bold Merchant'}. I want to request an escrow payout verification check.`);
+              window.open(`https://wa.me/${merchantStore.whatsapp || '2348000000000'}?text=${message}`, '_blank');
+            }}
+            className="flex-1 md:flex-none bg-emerald-600 text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-xl border-none cursor-pointer shadow-lg hover:bg-emerald-700 transition flex items-center justify-center gap-1"
+          >
+            💬 Support Link Node
+          </button>
         </div>
       </div>
 
-      {/* THREE INTERACTIVE SERVICE SEGMENTS EXPLAINER */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-          <div className="text-lg mb-1">🏠</div>
-          <h4 className="text-sm font-black text-[#0B132B] uppercase tracking-wide">1. Self-Managed</h4>
-          <p className="text-slate-500 text-xs mt-1 font-medium">Free by default. Run operations from your house or boutique shop. Pack and arrange your dispatch lines independently.</p>
-        </div>
-        <div className="bg-orange-50/50 border border-orange-200 p-5 rounded-2xl shadow-sm">
-          <div className="text-lg mb-1">🚀</div>
-          <h4 className="text-sm font-black text-[#FF5A00] uppercase tracking-wide">2. Premium Boost</h4>
-          <p className="text-slate-600 text-xs mt-1 font-medium">Want fast sales? Purchase premium ad banners and search priority. Bump listings directly to front-page feeds.</p>
-        </div>
-        <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-sm">
-          <div className="text-lg mb-1">📦</div>
-          <h4 className="text-sm font-black text-[#FF5A00] uppercase tracking-wide">3. Bold-Managed</h4>
-          <p className="text-slate-400 text-xs mt-1">Let us hold stock for you. Drop items at our dedicated hub; we verify physical quality, box, and handle consumer escrow.</p>
-        </div>
-      </div>
-
-      {/* STRATEGIC CONTROL SPLIT SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* METRICS ANALYTICS PANEL ROW */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         
-        {/* LISTING INTAKE BOARD */}
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 h-fit">
-          <h3 className="text-sm font-black uppercase tracking-wider text-[#0B132B] mb-4 border-b border-slate-100 pb-2">
-            🛒 Create New Listing
-          </h3>
-          
-          <form onSubmit={handleAddProduct} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Apparel Name / Service Title</label>
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Slim-Fit Tech Cargoes" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none focus:border-[#FF5A00]" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Price (₦ Value)</label>
-                <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="22000" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Available Units</label>
-                <input type="number" required value={stock} onChange={(e) => setStock(e.target.value)} placeholder="5" className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold focus:outline-none focus:border-[#FF5A00]" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Ecosystem Operational Track</label>
-              <select value={selectedPlan} onChange={(e) => setSelectedPlan(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-slate-50 font-bold focus:outline-none focus:border-[#FF5A00]">
-                <option value="Self-Managed">Self-Managed (Ship from my Location)</option>
-                <option value="Promoted">Premium Promotion (Fast-Track Ad Feed)</option>
-                <option value="Bold-Managed">Bold Fulfillment (Incur Warehouse Storage)</option>
-              </select>
-            </div>
-
-            <button type="submit" className="w-full bg-[#0B132B] text-white py-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-800 border-none cursor-pointer transition">
-              Publish Operational Listing
-            </button>
-          </form>
+        {/* CARD 1: ACTIVE PIPELINES */}
+        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 space-y-1 shadow-md">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Catalog Entities</p>
+          <div className="flex items-baseline gap-2 pt-1">
+            <span className="text-3xl font-mono font-black text-white">{activeCount}</span>
+            <span className="text-xs font-bold text-slate-500 uppercase">Live Listings</span>
+          </div>
+          <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/60 font-medium">Indexed within global search directory matrix.</p>
         </div>
 
-        {/* ACTIVE LIVE GRID SHOWROOM DISPLAY */}
-        <div className="lg:col-span-2 space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-wider text-[#0B132B]">
-            Your Inventory Fleet ({products.length} Items Listed)
-          </h3>
+        {/* CARD 2: TOTAL VALUATION VOLUME */}
+        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 space-y-1 shadow-md">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Gross Pipeline Vault Valuation</p>
+          <div className="flex items-baseline gap-1 pt-1">
+            <span className="text-2xl font-mono font-black text-[#FF5A00]">₦{totalEscrowVolume.toLocaleString()}</span>
+          </div>
+          <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/60 font-medium">Total commitment liability currently queryable.</p>
+        </div>
 
-          <div className="space-y-3">
-            {products.map((item) => (
-              <div key={item.id} className={`bg-white border rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition shadow-sm ${item.promoted ? 'border-l-4 border-l-[#FF5A00] bg-orange-50/20' : 'border-slate-200'}`}>
-                
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
-                    <img src={item.image} alt="Showcase layout" className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-[#0B132B]">{item.name}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-mono font-black text-[#FF5A00]">{item.price}</span>
-                      <span className="text-slate-300 text-xs">•</span>
-                      <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-500">Stock: {item.stock}</span>
-                      <span className="text-slate-300 text-xs">•</span>
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                        item.plan === 'Promoted' ? 'bg-orange-100 text-[#FF5A00]' : 
-                        item.plan === 'Bold-Managed' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}>{item.plan}</span>
+        {/* CARD 3: AVERAGE METRIC BOUND */}
+        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 space-y-1 shadow-md">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mean Entity Asset Value</p>
+          <div className="flex items-baseline gap-1 pt-1">
+            <span className="text-2xl font-mono font-black text-white">₦{averageValuation.toLocaleString()}</span>
+          </div>
+          <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/60 font-medium">Average cost ratio per assigned listing item.</p>
+        </div>
+
+      </div>
+
+      {/* LOWER CONTENT PANEL GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* LEFT COMPONENT: VENDOR LIVE LISTING FEED MANIFEST */}
+        <div className="lg:col-span-8 bg-[#16223F] p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+            <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-wider">
+              📦 Associated Store Inventory Ingestion
+            </h3>
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest bg-[#0B132B] px-2.5 py-1 rounded border border-slate-800">
+              {activeCount} Items Tracked
+            </span>
+          </div>
+
+          {vendorItems.length > 0 ? (
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              {vendorItems.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="bg-[#0B132B] p-4 rounded-2xl border border-slate-900 hover:border-slate-800 transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                >
+                  <div className="flex items-center gap-4 w-full sm:w-auto overflow-hidden">
+                    <span className="text-3xl bg-[#16223F] border border-slate-800 p-2.5 rounded-xl shrink-0">
+                      {item.img}
+                    </span>
+                    <div className="overflow-hidden">
+                      <span className="text-[8px] bg-slate-800 text-slate-300 font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        {item.category}
+                      </span>
+                      <h4 className="text-xs font-black text-white truncate mt-1 leading-tight">{item.title}</h4>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">📍 {item.location} | {item.meta}</p>
                     </div>
                   </div>
-                </div>
 
-                {/* MANAGEMENT CONSOLE ACTION HUB TRIGGERS */}
-                <div className="flex gap-2 w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0">
-                  {!item.promoted && (
-                    <button onClick={() => triggerPromotion(item.id)} className="flex-1 sm:flex-none text-[11px] font-black uppercase tracking-wider border border-[#FF5A00] text-[#FF5A00] px-3 py-2 rounded-xl bg-transparent hover:bg-[#FF5A00] hover:text-white transition cursor-pointer">
-                      🚀 Boost Ad
-                    </button>
-                  )}
-                  {item.plan !== 'Bold-Managed' && (
-                    <button onClick={() => transferToFulfillment(item.id)} className="flex-1 sm:flex-none text-[11px] font-black uppercase tracking-wider bg-slate-100 text-slate-800 hover:bg-slate-900 hover:text-white px-3 py-2 rounded-xl border-none cursor-pointer transition">
-                      📦 Handover to Bold
-                    </button>
-                  )}
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto shrink-0 border-t sm:border-none border-slate-900 pt-2 sm:pt-0">
+                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider block sm:hidden">Valuation</span>
+                    <span className="text-xs font-black text-[#FF5A00] font-mono">₦{item.price.toLocaleString()}</span>
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-12 text-center bg-[#0B132B] rounded-2xl border border-slate-900 space-y-2">
+              <span className="text-2xl block">📭</span>
+              <h4 className="text-xs font-black text-white uppercase tracking-wider">Inventory Array Vault Empty</h4>
+              <p className="text-[11px] text-slate-400 max-w-xs mx-auto">You haven't added any products to the marketplace directory yet using this deployment session.</p>
+            </div>
+          )}
+        </div>
 
-              </div>
-            ))}
+        {/* RIGHT COMPONENT: ESCROW COMPLIANCE COMPLIANCE MATRIX */}
+        <div className="lg:col-span-4 bg-[#16223F] p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+          <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-wider border-b border-slate-800 pb-2">
+            🛡️ Escrow Payout Audit Node
+          </h3>
+
+          <div className="space-y-3 text-xs font-medium">
+            <div className="bg-[#0B132B] p-3 rounded-xl border border-slate-900 space-y-1">
+              <span className="block text-[8px] text-slate-400 font-black uppercase">Fulfillment Compliance Rate</span>
+              <span className="text-sm font-mono font-black text-emerald-400">100% Elite Tier</span>
+            </div>
+            
+            <div className="bg-[#0B132B] p-3 rounded-xl border border-slate-900 space-y-1">
+              <span className="block text-[8px] text-slate-400 font-black uppercase">Pending Holding Capital Vaults</span>
+              <span className="text-sm font-mono font-black text-amber-400">₦0.00 Ledger Balance</span>
+            </div>
+
+            <div className="p-3 bg-[#0B132B]/50 rounded-xl border border-slate-900 text-[10px] text-slate-400 leading-relaxed font-medium">
+              💡 <span className="text-white font-bold">Payout Regulation:</span> Payout vectors automatically disburse immediately into your designated corporate settlement node once the buyer executes the inspection verification sign-off logic clearance payload.
+            </div>
           </div>
         </div>
 

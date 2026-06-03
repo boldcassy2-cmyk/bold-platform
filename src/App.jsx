@@ -22,6 +22,7 @@ export default function App() {
     { id: 6, category: 'education', title: 'Fullstack Next.js + Tailwind Mentorship', price: 150000, location: 'Remote', meta: '8 Weeks | 1-on-1 Sessions', img: '📚' }
   ]);
 
+  // INITIALIZED MERCHANT PROFILE CONTEXT DATA
   const [merchantStore, setMerchantStore] = useState({
     name: 'Bold Enterprise',
     niche: 'Multi-Sector Commerce Node',
@@ -66,7 +67,16 @@ export default function App() {
       {/* CORE ROUTING SWITCH CONTAINER */}
       <div className="pt-4 px-2">
         {currentPage === 'signup' && <SignUp setCurrentPage={setCurrentPage} setMerchantStore={setMerchantStore} />}
-        {currentPage === 'store' && <Store merchantStore={merchantStore} />}
+        
+        {/* COMPREHENSIVE VENDOR STREAM INTEGRATION HUB */}
+        {currentPage === 'store' && (
+          <Store 
+            merchantStore={merchantStore} 
+            items={globalItems} 
+            setCurrentPage={setCurrentPage} 
+          />
+        )}
+        
         {currentPage === 'promotions' && <Promotions />}
         {currentPage === 'escrow' && <EscrowTracker />}
         {currentPage === 'ceo' && <CeoDashboard />}
