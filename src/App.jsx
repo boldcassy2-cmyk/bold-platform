@@ -9,7 +9,7 @@ import ProductCatalogForm from './pages/ProductCatalogForm';
 import EscrowProcessor from './pages/EscrowProcessor';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('marketplace'); // Default straight to live market view
+  const [currentPage, setCurrentPage] = useState('marketplace');
   const [activeTxPayload, setActiveTxPayload] = useState(null);
   
   // SHARED GLOBAL LIVE INVENTORY LEDGER MATRIX
@@ -21,6 +21,14 @@ export default function App() {
     { id: 5, category: 'travel', title: 'Lagos to London Flight Ticket (Oneway)', price: 950000, location: 'Lagos', meta: 'Premium Economy | June Drop', img: '✈️' },
     { id: 6, category: 'education', title: 'Fullstack Next.js + Tailwind Mentorship', price: 150000, location: 'Remote', meta: '8 Weeks | 1-on-1 Sessions', img: '📚' }
   ]);
+
+  
+ // LIVE ENTERPRISE ESCROW CLEARED ACCOUNTING MATRIX
+  const [globalTransactions, setGlobalTransactions] = useState([
+    { id: 'TX-8831', title: 'Heavyweight Boxy Hoodie (Vintage Black)', amount: 33500, status: 'Completed', date: '2026-06-04', hub: 'Lagos Hub', type: 'Fashion' },
+    { id: 'TX-9022', title: 'MacBook Pro M2 (16GB RAM / 512GB SSD)', number: 1, amount: 1873500, status: 'In Escrow Vault', date: '2026-06-05', hub: 'Lagos Hub', type: 'Electronics' },
+    { id: 'TX-4115', title: 'Toyota Camry 2018 (Foreign Used SE)', amount: 14650000, status: 'Hub Dispatched', date: '2026-06-06', hub: 'Abuja Hub', type: 'Automotive' }
+  ]); 
 
   // INITIALIZED MERCHANT PROFILE CONTEXT DATA
   const [merchantStore, setMerchantStore] = useState({
@@ -36,10 +44,16 @@ export default function App() {
     setCurrentPage('processor');
   };
 
-  // Callback function to push newly created form payloads into the main marketplace state array
   const handleAddNewProduct = (newProductPayload) => {
     setGlobalItems((prevItems) => [newProductPayload, ...prevItems]);
-    setCurrentPage('marketplace'); // Automatically slide back to market to show live update
+    setCurrentPage('marketplace');
+  };
+
+  // Upgraded handler to catch active vault lock responses dynamically
+  const handleCompleteEscrowTransaction = (finalizedTxData) => {
+    setGlobalTransactions((prevTx) => [finalizedTxData, ...prevTx]);
+    setActiveTxPayload(null);
+    setCurrentPage('escrow'); // Direct jump to tracker so the user can see their locked funds
   };
 
   return (
@@ -68,25 +82,28 @@ export default function App() {
       <div className="pt-4 px-2">
         {currentPage === 'signup' && <SignUp setCurrentPage={setCurrentPage} setMerchantStore={setMerchantStore} />}
         
-        {/* COMPREHENSIVE VENDOR STREAM INTEGRATION HUB */}
-        {currentPage === 'store' && (
+        
+       {currentPage === 'store' && (
           <Store 
             merchantStore={merchantStore} 
             items={globalItems} 
+            transactions={globalTransactions} // Add this line here
             setCurrentPage={setCurrentPage} 
           />
-        )}
+        )} 
         
         {currentPage === 'promotions' && <Promotions />}
-        {currentPage === 'escrow' && <EscrowTracker />}
+        
+        {currentPage === 'escrow' && (
+          <EscrowTracker transactions={globalTransactions} />
+        )}
+        
         {currentPage === 'ceo' && <CeoDashboard />}
         
-        {/* Pass down ingestion handler directly to catalog form page view */}
         {currentPage === 'addproduct' && (
           <ProductCatalogForm onAddProductComplete={handleAddNewProduct} setCurrentPage={setCurrentPage} />
         )}
         
-        {/* Pass down dynamic global item records directly to marketplace dashboard view */}
         {currentPage === 'marketplace' && (
           <Marketplace 
             setCurrentPage={setCurrentPage} 
@@ -99,14 +116,10 @@ export default function App() {
           <EscrowProcessor 
             activeTx={activeTxPayload} 
             onCancelTx={() => setCurrentPage('marketplace')}
-            onCompleteTx={() => {
-              setActiveTxPayload(null);
-              setCurrentPage('marketplace');
-            }}
+            onCompleteTx={handleCompleteEscrowTransaction}
           />
         )}
       </div>
-
     </div>
   );
 }

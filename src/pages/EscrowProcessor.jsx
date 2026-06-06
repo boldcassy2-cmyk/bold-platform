@@ -1,184 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 export default function EscrowProcessor({ activeTx, onCancelTx, onCompleteTx }) {
-  const [paymentStep, setPaymentStep] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(600);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const tx = activeTx || {
-    title: "Heavyweight Boxy Hoodie (Vintage Black)",
-    price: 28000,
-    category: "fashion",
-    location: "Lagos Hub",
-    meta: "Size: XL | Premium Cotton"
-  };
+  if (!activeTx) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 bg-[#16223F] border border-slate-800 rounded-3xl text-center text-white">
+        <p className="text-slate-400">No active escrow asset selected.</p>
+        <button onClick={onCancelTx} className="mt-4 text-xs font-black text-[#FF5A00] uppercase tracking-wider">
+          Return to Market
+        </button>
+      </div>
+    );
+  }
 
-  const boldFee = tx.price * 0.015;
-  const totalPayout = tx.price + boldFee;
+  // PLATFORM FINANCIAL CONVENANT PRICING ARCHITECTURE
+  const basePrice = activeTx.price || 0;
+  const inspectionHubFee = 5000; // Standard baseline physical verification logistics fee
+  
+  // Premium scale calculation for large assets over 1M Naira
+  const isPremiumAsset = basePrice >= 1000000;
+  const vaultFeeRate = isPremiumAsset ? 0.01 : 0.015; 
+  const securityVaultFee = Math.round(basePrice * vaultFeeRate);
+  
+  const totalEscrowCommitment = basePrice + inspectionHubFee + securityVaultFee;
 
-  useEffect(() => {
-    if (paymentStep !== 1) return;
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [paymentStep]);
+  const handlePaymentExecution = () => {
+    setIsProcessing(true);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    // Simulate standard pipeline response time for transaction verification
+    setTimeout(() => {
+      const generatedTxReceipt = {
+        id: `TX-${Math.floor(1000 + Math.random() * 9000)}`,
+        title: activeTx.title,
+        amount: totalEscrowCommitment,
+        status: 'In Escrow Vault',
+        date: new Date().toISOString().split('T')[0]
+      };
+      
+      setIsProcessing(false);
+      onCompleteTx(generatedTxReceipt);
+    }, 1500);
   };
 
   return (
-    <main className="max-w-5xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
-      
-      {/* HEADER ESCROW STATUS */}
-      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <span className="text-[9px] bg-emerald-500 text-slate-950 font-black tracking-widest uppercase px-2 py-0.5 rounded">
-            🔒 SECURE TRANSFER MATRIX PIPELINE
-          </span>
-          <h1 className="text-2xl font-black text-white mt-1">Escrow Checkout Processor</h1>
-        </div>
+    <div className="max-w-2xl mx-auto my-6 px-4 text-white">
+      {/* TRANSACTION NAVIGATION HEADER */}
+      <div className="flex items-center justify-between mb-6">
         <button 
-          onClick={onCancelTx}
-          className="text-xs font-bold text-slate-300 hover:text-white bg-[#0B132B] border border-slate-800 px-4 py-2 rounded-xl transition cursor-pointer"
+          onClick={onCancelTx} 
+          disabled={isProcessing}
+          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
         >
-          ← Abort Transaction
+          ← Cancel Transaction
         </button>
+        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-3 py-1 rounded-full border border-emerald-500/30 uppercase tracking-wider">
+          🔒 Secure Vault Lock Activated
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* TRANS TRANSACTION DETAIL CONTROLS */}
-        <div className="lg:col-span-7 bg-[#16223F] p-6 rounded-3xl shadow-xl border border-slate-800 space-y-6">
-          
-          {paymentStep === 1 && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-amber-950/40 border border-amber-900/60 p-4 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-black text-amber-400 uppercase">Awaiting Bank Transfer Allocation</h4>
-                  <p className="text-[10px] text-slate-300 mt-0.5">Deploy exact total payable to the vault anchor routing terminal details.</p>
-                </div>
-                <span className="font-mono text-xs font-black text-amber-400 bg-amber-950 px-2.5 py-1 rounded border border-amber-900/60">
-                  ⏱️ {formatTime(secondsLeft)}
-                </span>
-              </div>
-
-              {/* BANK DETAILS OVERHAUL */}
-              <div className="bg-[#0B132B] border border-slate-800 p-5 rounded-2xl space-y-3">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Dynamic Escrow Holding Bank Target</p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="block text-[9px] font-bold text-slate-400 uppercase">Settlement Bank</span>
-                    <span className="text-xs font-black text-white">Bold Partner Node / Wema</span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-bold text-slate-400 uppercase">Vault Routing Number</span>
-                    <span className="text-xs font-black text-[#FF5A00] font-mono tracking-wider">9024018274</span>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800/80 flex justify-between items-center">
-                  <div>
-                    <span className="block text-[9px] font-bold text-slate-400 uppercase">Exact Net Liability Amount</span>
-                    <span className="text-base font-black text-[#FF5A00] font-mono">₦{totalPayout.toLocaleString()}</span>
-                  </div>
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest border border-slate-800 px-2 py-1 rounded bg-[#16223F]">
-                    Ref: BOLD-9921
-                  </span>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => { setPaymentStep(2); setTimeout(() => setPaymentStep(3), 2000); }}
-                className="w-full bg-[#FF5A00] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-xl border-none hover:brightness-110 transition cursor-pointer shadow-md"
-              >
-                ✔️ I Have Processed This Transfer Payment
-              </button>
-            </div>
-          )}
-
-          {paymentStep === 2 && (
-            <div className="p-12 text-center space-y-3 bg-[#0B132B] rounded-2xl border border-slate-800">
-              <div className="w-8 h-8 border-4 border-[#FF5A00] border-t-transparent rounded-full animate-spin mx-auto" />
-              <h4 className="text-xs font-black uppercase text-slate-300 tracking-wider pt-2">Verifying Ledger Deposit Blocks...</h4>
-            </div>
-          )}
-
-          {paymentStep === 3 && (
-            <div className="p-8 text-center bg-emerald-950/20 border border-emerald-800/80 rounded-2xl space-y-4">
-              <span className="text-3xl">🔒</span>
-              <div>
-                <h4 className="text-sm font-black text-emerald-400 uppercase tracking-wider">Funds Secured In Safe Vault Escrow Array</h4>
-                <p className="text-xs text-slate-300 mt-1">Vendor has been pinged to deploy fulfillment actions. Your investment capital is safe.</p>
-              </div>
-              <button 
-                onClick={onCompleteTx}
-                className="bg-emerald-600 text-white font-black text-xs uppercase tracking-wider px-6 py-2.5 rounded-xl border-none hover:bg-emerald-700 transition cursor-pointer"
-              >
-                Return to Live Feed
-              </button>
-            </div>
-          )}
-
-          {/* ESCROW TRACKER STAGES */}
-          <div className="pt-4 border-t border-slate-800 space-y-3">
-            <h4 className="text-xs font-black text-[#FF5A00] uppercase tracking-wider">Escrow Life Cycle Milestones</h4>
-            <div className="relative pl-6 space-y-4 before:content-[''] before:absolute before:left-2 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-slate-800">
-              <div>
-                <div className="absolute -left-5 w-2.5 h-2.5 rounded-full bg-[#FF5A00]" />
-                <p className="text-[11px] font-black text-white">Stage 1: Ingestion & Billing Assignment</p>
-              </div>
-              <div>
-                <div className={`absolute -left-5 w-2.5 h-2.5 rounded-full ${paymentStep === 3 ? 'bg-emerald-500' : 'bg-slate-800'}`} />
-                <p className="text-[11px] font-black text-slate-300">Stage 2: Vault Interception & Lockdown Lock</p>
-              </div>
-              <div>
-                <div className="absolute -left-5 w-2.5 h-2.5 rounded-full bg-slate-800" />
-                <p className="text-[11px] font-black text-slate-500">Stage 3: Buyer Clearance Clearance Authorization</p>
-              </div>
-            </div>
-          </div>
-
+      <div className="bg-[#16223F] border border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-2xl space-y-8">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">Escrow Agreement Invoice</h2>
+          <p className="text-xs text-slate-400 mt-1">Review the asset metrics and platform holding distribution metrics below.</p>
         </div>
 
-        {/* INVOICE SIDE MANIFEST */}
-        <div className="lg:col-span-5 bg-[#16223F] text-white p-5 rounded-3xl shadow-xl border border-slate-800 space-y-4">
-          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider border-b border-slate-800 pb-2">
-            🧾 Ledger Commitment Bill
-          </h3>
+        {/* ASSET SUMMARY CARD */}
+        <div className="bg-[#0B132B] rounded-2xl p-4 flex items-center gap-4 border border-slate-800">
+          <div className="w-14 h-14 bg-[#16223F] rounded-xl flex items-center justify-center text-3xl select-none">
+            {activeTx.img || '📦'}
+          </div>
+          <div className="text-left">
+            <h4 className="font-black text-sm text-white line-clamp-1">{activeTx.title}</h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">{activeTx.meta || 'Verified Hub Vendor'}</p>
+            <p className="text-[10px] text-[#FF5A00] font-black uppercase tracking-wider mt-0.5">📍 {activeTx.location || 'Lagos'}</p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3 bg-[#0B132B] p-3 rounded-xl border border-slate-900">
-            <span className="text-xl">💼</span>
-            <div className="overflow-hidden">
-              <span className="text-[8px] bg-[#FF5A00] text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-                {tx.category}
+        {/* BALANCE ACCOUNTING LEDGER */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 text-left">Financial Allocation</h3>
+          <div className="bg-[#0B132B] font-mono text-sm rounded-2xl p-5 space-y-4 border border-slate-800/60">
+            <div className="flex justify-between items-center text-slate-400">
+              <span>Asset Base Value:</span>
+              <span className="text-white font-bold">₦{basePrice.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center text-slate-400">
+              <span>Hub Inspection Logistics:</span>
+              <span className="text-white font-bold">₦{inspectionHubFee.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center text-slate-400">
+              <span className="flex items-center gap-1.5">
+                Vault Security Shield ({isPremiumAsset ? '1.0%' : '1.5%'}):
+                {isPremiumAsset && <span className="text-[9px] bg-purple-600/20 text-purple-400 px-1.5 py-0.5 rounded font-sans font-black uppercase">Tier Discount</span>}
               </span>
-              <h4 className="text-xs font-black text-white truncate mt-1">{tx.title}</h4>
-              <p className="text-[9px] text-slate-400 truncate font-semibold">{tx.meta}</p>
+              <span className="text-white font-bold">₦{securityVaultFee.toLocaleString()}</span>
             </div>
-          </div>
-
-          <div className="space-y-2 text-xs font-medium pt-1">
-            <div className="flex justify-between text-slate-400">
-              <span>Base Cost Evaluation</span>
-              <span className="font-mono text-white">₦{tx.price.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Bold Protection Fee (1.5%)</span>
-              <span className="font-mono text-white">₦{boldFee.toLocaleString()}</span>
-            </div>
-            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-sm font-black">
-              <span className="text-slate-300">Total Capital commitment</span>
-              <span className="font-mono text-[#FF5A00]">₦{totalPayout.toLocaleString()}</span>
+            <div className="border-t border-slate-800/80 pt-4 flex justify-between items-center text-base">
+              <span className="font-sans font-black text-xs uppercase tracking-widest text-[#FF5A00]">Total Safe Lock Value</span>
+              <span className="text-xl font-black text-white">₦{totalEscrowCommitment.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-      </div>
+        {/* REGULATORY LEGAL COVENANT DEPLOYMENT */}
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer group text-left">
+            <input 
+              type="checkbox" 
+              checked={agreedToTerms} 
+              disabled={isProcessing}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-1 accent-[#FF5A00] h-4 w-4 rounded border-slate-700 bg-[#0B132B] disabled:opacity-40" 
+            />
+            <span className="text-[11px] text-slate-400 group-hover:text-slate-300 leading-relaxed transition-colors select-none">
+              I authorize the containment of this payment inside the Bold.ng Escrow pool. Funds will remain untouchable until items are received at our centralized Lagos Hub and undergo visual verification.
+            </span>
+          </label>
 
-    </main>
+          <button 
+            disabled={!agreedToTerms || isProcessing}
+            onClick={handlePaymentExecution}
+            className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center ${
+              agreedToTerms && !isProcessing
+                ? 'bg-[#FF5A00] text-white hover:brightness-110 active:scale-[0.99] cursor-pointer' 
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+          >
+            {isProcessing ? (
+              <span className="flex items-center gap-2 animate-pulse tracking-wide font-medium normal-case text-slate-300">
+                Securing Vault allocations...
+              </span>
+            ) : (
+              'Confirm & Lock Funds In Escrow'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

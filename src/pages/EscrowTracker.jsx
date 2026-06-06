@@ -1,197 +1,119 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-export default function EscrowTracker() {
-  const [searchTxId, setSearchTxId] = useState('');
-  const [trackedTx, setTrackedTx] = useState(null);
-  const [searched, setSearched] = useState(false);
+/**
+ * BOLD.NG ESCROW VAULT TRACKER
+ * Visualized financial accounting panel tracking active holding contracts.
+ */
+export default function EscrowTracker({ transactions }) {
+  // Defensive fallbacks in case parent array is uninitialized
+  const liveLedger = transactions || [];
 
-  // Mock Global Database of Secure Escrow Transactions
-  const mockEscrowDatabase = {
-    "TX-8839-LG": {
-      id: "TX-8839-LG",
-      item: "Heavyweight Boxy Hoodie (Vintage Black)",
-      amount: 28000,
-      buyer: "Deji A.",
-      seller: "Bold Enterprise",
-      status: "inspection", // milestone status node
-      dateInitiated: "2026-06-01",
-      estRelease: "Within 24 Hours"
-    },
-    "TX-4491-ABJ": {
-      id: "TX-4491-ABJ",
-      item: "MacBook Pro M2 (16GB/512GB)",
-      amount: 1850000,
-      buyer: "Chidi O.",
-      seller: "Tech Vault NG",
-      status: "completed",
-      dateInitiated: "2026-05-28",
-      estRelease: "Funds Disbursed"
-    },
-    "TX-1029-LKK": {
-      id: "TX-1029-LKK",
-      item: "Toyota Camry 2018 SE",
-      amount: 14500000,
-      buyer: "Alhaji Musa",
-      seller: "Bold Enterprise",
-      status: "holding",
-      dateInitiated: "2026-06-02",
-      estRelease: "Awaiting Shipment Courier"
-    }
-  };
+  // Compute metrics from the active stream
+  const activeHoldingTotal = liveLedger
+    .filter(tx => tx.status === 'In Escrow Vault')
+    .reduce((sum, tx) => sum + tx.amount, 0);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearched(true);
-    const cleanId = searchTxId.trim().toUpperCase();
-    if (mockEscrowDatabase[cleanId]) {
-      setTrackedTx(mockEscrowDatabase[cleanId]);
-    } else {
-      setTrackedTx(null);
-    }
-  };
+  const completedPayoutTotal = liveLedger
+    .filter(tx => tx.status === 'Completed')
+    .reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
-    <main className="max-w-4xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
+    <div className="max-w-5xl mx-auto my-6 px-4 space-y-8 text-white selection:bg-[#FF5A00]">
       
-      {/* HEADER PROTOCOL CARD */}
-      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
-            🛡️ BOLD SECURE VAULT ARRAYS
+      {/* ECOSYSTEM OVERVIEW BANNER */}
+      <div>
+        <h2 className="text-3xl font-black tracking-tight text-left">Ecosystem Escrow Vaults</h2>
+        <p className="text-xs text-slate-400 mt-1 text-left">
+          Real-time tracking of clearing-house allocations. Funds remain fully fortified inside isolation nodes.
+        </p>
+      </div>
+
+      {/* METRIC SUMMATION PANELS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
+          <span className="text-[9px] font-black tracking-widest text-[#FF5A00] uppercase block text-left">
+            🔒 SECURED CAPITAL IN ESCROW
           </span>
-          <h1 className="text-2xl font-black text-white mt-1">Escrow Ledger Audit Stream</h1>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Verify the security status of capital commitments across public operational nodes in real time.</p>
-        </div>
-      </div>
-
-      {/* SEARCH CONTROL DECK */}
-      <div className="bg-[#16223F] p-6 rounded-3xl shadow-xl border border-slate-800">
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">
-              Input Escrow Reference Hash / Transaction ID
-            </label>
-            <input 
-              type="text"
-              value={searchTxId}
-              onChange={(e) => setSearchTxId(e.target.value)}
-              placeholder="e.g., TX-8839-LG, TX-4491-ABJ, TX-1029-LKK"
-              className="w-full px-4 py-3 rounded-xl border border-slate-700 text-xs font-mono font-bold bg-[#0B132B] text-white focus:outline-none focus:border-[#FF5A00] tracking-widest uppercase"
-            />
-          </div>
-          <button
-            type="submit"
-            className="sm:mt-5 bg-[#FF5A00] text-white font-black text-xs uppercase tracking-wider px-6 py-3 sm:py-0 rounded-xl border-none cursor-pointer hover:brightness-110 transition h-11 shrink-0 self-end w-full sm:w-auto"
-          >
-            🔍 Audit Pipeline
-          </button>
-        </form>
-      </div>
-
-      {/* TRACKING DISPATCH VIEW SCREEN */}
-      {searched && trackedTx ? (
-        <div className="bg-[#16223F] p-6 rounded-3xl shadow-xl border border-slate-800 space-y-6 animate-fadeIn">
-          
-          {/* META METRIC BAR */}
-          <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 gap-2">
-            <div>
-              <span className="text-[10px] font-mono text-slate-400 font-bold">MUTABLE RECORD NODE:</span>
-              <h3 className="text-base font-black text-white font-mono">{trackedTx.id}</h3>
-            </div>
-            <div className="text-right">
-              <span className="text-[9px] text-slate-400 font-black block uppercase">Escrow Valuation</span>
-              <span className="text-lg font-black text-[#FF5A00] font-mono">₦{trackedTx.amount.toLocaleString()}</span>
-            </div>
-          </div>
-
-          {/* ASSET SPECIFICATION GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0B132B] p-4 rounded-2xl border border-slate-900 text-xs">
-            <div className="space-y-1">
-              <p className="text-slate-400 font-medium">📦 Protected Asset Entity:</p>
-              <p className="text-white font-black">{trackedTx.item}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-slate-400 font-medium">🗓️ Initialized Timestamp:</p>
-              <p className="text-white font-mono font-bold">{trackedTx.dateInitiated}</p>
-            </div>
-            <div className="space-y-1 pt-2 sm:pt-0 border-t sm:border-none border-slate-800">
-              <p className="text-slate-400 font-medium">👤 Authenticated Buyer Node:</p>
-              <p className="text-white font-bold">{trackedTx.buyer}</p>
-            </div>
-            <div className="space-y-1 pt-2 sm:pt-0 border-t sm:border-none border-slate-800">
-              <p className="text-slate-400 font-medium">🏬 Target Merchant Node:</p>
-              <p className="text-white font-bold">{trackedTx.seller}</p>
-            </div>
-          </div>
-
-          {/* VISUAL PIPELINE MILESTONE TRACKER STEPS */}
-          <div className="space-y-3">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              Milestone Security Progress Matrix
-            </label>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-center text-[10px] font-black uppercase tracking-wider">
-              
-              {/* STEP 1 */}
-              <div className={`p-3 rounded-xl border ${
-                trackedTx.status !== 'failed' ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' : 'bg-[#0B132B] text-slate-500 border-slate-900'
-              }`}>
-                💰 1. Secured Vault
-              </div>
-
-              {/* STEP 2 */}
-              <div className={`p-3 rounded-xl border ${
-                trackedTx.status === 'inspection' || trackedTx.status === 'completed' 
-                  ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' 
-                  : trackedTx.status === 'holding' ? 'bg-amber-950/30 text-amber-400 border-amber-900/60 animate-pulse' : 'bg-[#0B132B] text-slate-500 border-slate-900'
-              }`}>
-                🚚 2. Dispatched
-              </div>
-
-              {/* STEP 3 */}
-              <div className={`p-3 rounded-xl border ${
-                trackedTx.status === 'completed' 
-                  ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/60' 
-                  : trackedTx.status === 'inspection' ? 'bg-amber-950/30 text-amber-400 border-amber-900/60 animate-pulse' : 'bg-[#0B132B] text-slate-500 border-slate-900'
-              }`}>
-                🔍 3. In Inspection
-              </div>
-
-              {/* STEP 4 */}
-              <div className={`p-3 rounded-xl border ${
-                trackedTx.status === 'completed' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-[#0B132B] text-slate-500 border-slate-900'
-              }`}>
-                🏁 4. Released
-              </div>
-
-            </div>
-          </div>
-
-          {/* DYNAMIC SETTILEMENT MESSAGE FOOTER */}
-          <div className="p-3.5 bg-[#0B132B] border border-slate-900 rounded-xl flex items-center justify-between text-xs font-semibold">
-            <span className="text-slate-400">Next Clearance Vector:</span>
-            <span className={`font-bold ${trackedTx.status === 'completed' ? 'text-emerald-400' : 'text-amber-400'}`}>
-              ⏳ {trackedTx.estRelease}
-            </span>
-          </div>
-
-        </div>
-      ) : searched ? (
-        /* ACCOUNT MISMATCH SCREEN */
-        <div className="bg-[#16223F] rounded-3xl p-12 text-center border border-slate-800 max-w-md mx-auto animate-fadeIn">
-          <p className="text-3xl">📭</p>
-          <h4 className="text-sm font-black text-white uppercase mt-2">Transaction Identifier Not Found</h4>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            That hash parameter is missing from the public ledger matrix. Double check the character string capitalization or confirm execution paths with the vendor.
+          <p className="text-3xl font-mono font-black mt-3 text-left">
+            ₦{activeHoldingTotal.toLocaleString()}
           </p>
+          <p className="text-[11px] text-slate-400 mt-1 text-left">Currently isolated pending delivery clearance</p>
         </div>
-      ) : (
-        /* INITIAL BLANK HUD GUIDE */
-        <div className="bg-[#16223F]/60 rounded-3xl p-8 text-center border border-slate-800/60 max-w-md mx-auto text-xs text-slate-400 font-medium">
-          💡 Try using one of our pre-seeded test keys above to evaluate the visual milestones framework!
-        </div>
-      )}
 
-    </main>
+        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
+          <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase block text-left">
+            ✅ TOTAL DISBURSED PAYOUTS
+          </span>
+          <p className="text-3xl font-mono font-black mt-3 text-left">
+            ₦{completedPayoutTotal.toLocaleString()}
+          </p>
+          <p className="text-[11px] text-slate-400 mt-1 text-left">Successfully wired out to verified vendors</p>
+        </div>
+      </div>
+
+      {/* DETAILED TRANSACTION REGISTER TABLE */}
+      <div className="bg-[#16223F] rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+        <div className="p-6 border-b border-slate-800/60 flex justify-between items-center">
+          <h3 className="font-black text-sm uppercase tracking-wider text-slate-300">Vault Settlement Registry</h3>
+          <span className="text-[10px] font-bold bg-[#0B132B] px-3 py-1 rounded-full border border-slate-700 text-slate-400">
+            {liveLedger.length} Active Records
+          </span>
+        </div>
+
+        {liveLedger.length === 0 ? (
+          <div className="py-16 text-center text-slate-500 text-sm">
+            No escrow transactions found in this deployment sequence.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse font-sans">
+              <thead>
+                <tr className="bg-[#0B132B]/60 text-[10px] font-black tracking-widest text-slate-400 uppercase border-b border-slate-800">
+                  <th className="py-4 px-6">Vault ID</th>
+                  <th className="py-4 px-6">Asset Item</th>
+                  <th className="py-4 px-6">Settlement Value</th>
+                  <th className="py-4 px-6 text-center">Operational Status</th>
+                  <th className="py-4 px-6 text-right">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/40 text-xs font-medium text-slate-200">
+                {liveLedger.map((tx) => {
+                  const isInEscrow = tx.status === 'In Escrow Vault';
+                  
+                  return (
+                    <tr key={tx.id} className="hover:bg-[#0B132B]/30 transition-colors group">
+                      <td className="py-4 px-6 font-mono font-bold text-[#FF5A00] tracking-tight">
+                        {tx.id}
+                      </td>
+                      <td className="py-4 px-6 font-bold text-white group-hover:text-[#FF5A00] transition-colors">
+                        {tx.title}
+                      </td>
+                      <td className="py-4 px-6 font-mono font-black text-white">
+                        ₦{tx.amount.toLocaleString()}
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-block text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                          isInEscrow 
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        }`}>
+                          {isInEscrow ? '🔒 ' : '🔓 '} {tx.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right font-mono text-slate-400">
+                        {tx.date}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </div>
   );
 }
