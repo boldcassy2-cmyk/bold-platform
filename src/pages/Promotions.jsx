@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 
-export default function Promotions() {
+export default function Promotions({ uploadedItems = [] }) {
+  // Asset Management States
+  const [selectedItemId, setSelectedItemId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Budget Matrix States
   const [dailyBudget, setDailyBudget] = useState(5000); // Default N5,000 per day
   const [campaignDays, setCampaignDays] = useState(7);   // Default 7-day duration
@@ -13,14 +17,34 @@ export default function Promotions() {
     broadcast: { name: 'Direct Push Notification Broadcast', multiplier: 45, conversions: 0.08 }
   };
 
+  // Mock fallback array to protect frontend layout rendering if props are initially empty
+  const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
+    { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
+    { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
+    { id: 'p3', title: 'Branded Merchant Corporate Apparel', type: 'product', price: 15000, category: 'fashion' }
+  ];
+
+  // Filter items based on user search string
+  const filteredItems = defaultItemsList.filter(item => 
+    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Track currently active chosen asset configuration
+  const selectedAsset = defaultItemsList.find(item => item.id === selectedItemId);
+
   // Math Formulations
   const activePlacement = placementMultipliers[adPlacement];
   const totalInvestment = dailyBudget * campaignDays;
   const estimatedImpressions = dailyBudget * activePlacement.multiplier * campaignDays;
   const estimatedClicks = Math.floor(estimatedImpressions * activePlacement.conversions);
 
+  const handleLaunchCampaign = () => {
+    if (!selectedItemId) return;
+    alert(`Campaign initiated securely for "${selectedAsset.title}"! Total billing matrix of ₦${totalInvestment.toLocaleString()} allocated to escrow verification.`);
+  };
+
   return (
-    <main className="max-w-5xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
+    <main className="max-w-5xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white text-left">
       
       {/* HEADER PLATFORM CARD */}
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -33,12 +57,78 @@ export default function Promotions() {
         </div>
       </div>
 
+      {/* STEP 1: INTERACTIVE ASSET PICKER INTERFACE */}
+      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <h3 className="text-base font-black tracking-tight">🎯 Step 1: Select Asset to Promote</h3>
+            <p className="text-xs text-slate-400">Choose the specific uploaded product or service for this marketing campaign node.</p>
+          </div>
+          
+          {/* SEARCH FIELD BAR */}
+          <input 
+            type="text"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-[#0B132B] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl px-3 py-2 w-full sm:w-64 focus:outline-none focus:border-[#FF5A00]"
+          />
+        </div>
+
+        {/* INTERACTIVE ITEM STREAM GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
+          {filteredItems.map((item) => {
+            const isSelected = selectedItemId === item.id;
+            return (
+              <div
+                key={item.id}
+                onClick={() => setSelectedItemId(item.id)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                  isSelected 
+                    ? 'bg-[#FF5A00]/10 border-[#FF5A00] shadow-md' 
+                    : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                {/* FLOATING TYPE BADGE */}
+                <span className={`absolute top-2 right-2 text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded ${
+                  item.type === 'service' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                }`}>
+                  {item.type}
+                </span>
+
+                <div className="pr-12">
+                  <h4 className="text-xs font-bold line-clamp-2 text-slate-100 group-hover:text-white">
+                    {item.title}
+                  </h4>
+                  <p className="text-[#FF5A00] font-mono text-xs font-bold mt-2">
+                    ₦{Number(item.price).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* VISUAL SELECTION STATUS NOTIFIER */}
+                <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                  <span className="capitalize text-[9px] text-slate-500">Hub: {item.category || 'General'}</span>
+                  {isSelected ? (
+                    <span className="text-[#FF5A00] font-black flex items-center gap-1">
+                      ● Active Target
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">Select Item</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* STEP 2 & DETAILS DISPLAY MATRIX CONTAINER */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
         {/* LEFT COLUMN: INTERACTIVE CONTROLS */}
         <div className="lg:col-span-7 bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
           <h3 className="text-base font-black tracking-tight border-b border-slate-800 pb-3">
-            ⚙️ Campaign Parameter Configuration
+            ⚙️ Step 2: Campaign Parameter Configuration
           </h3>
 
           {/* SLIDER 1: DAILY BUDGET */}
@@ -141,6 +231,21 @@ export default function Promotions() {
             </h3>
             
             <div className="mt-4 space-y-4">
+              {/* SELECTED TARGET NODE CONFIRMATION TILE */}
+              <div className="bg-[#0B132B] p-3 rounded-xl border border-dashed border-slate-800">
+                <span className="text-[9px] text-slate-400 font-black uppercase block mb-1">Target Engine Lock</span>
+                {selectedAsset ? (
+                  <div>
+                    <span className="text-xs font-bold text-white line-clamp-1">{selectedAsset.title}</span>
+                    <span className="text-[10px] font-mono text-[#FF5A00] block mt-0.5">₦{Number(selectedAsset.price).toLocaleString()}</span>
+                  </div>
+                ) : (
+                  <span className="text-xs font-medium text-amber-500 flex items-center gap-1.5 animate-pulse">
+                    ⚠️ No asset selected yet
+                  </span>
+                )}
+              </div>
+
               {/* INSIGHT 1: IMPRESSIONS */}
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
                 <div>
@@ -175,10 +280,16 @@ export default function Promotions() {
             </div>
             
             <button 
-              onClick={() => alert(`Campaign initiated securely! Total billing matrix of ₦${totalInvestment.toLocaleString()} allocated to escrow verification.`)}
-              className="w-full bg-[#FF5A00] text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none cursor-pointer hover:brightness-110 transition shadow-lg"
+              type="button"
+              disabled={!selectedItemId}
+              onClick={handleLaunchCampaign}
+              className={`w-full font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none shadow-lg transition duration-200 ${
+                selectedItemId 
+                  ? 'bg-[#FF5A00] text-white cursor-pointer hover:brightness-110' 
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+              }`}
             >
-              🚀 Launch Advertising Campaign
+              {selectedItemId ? '🚀 Launch Advertising Campaign' : '❌ Select an asset to unlock'}
             </button>
             <span className="text-[9px] text-slate-500 font-medium block text-center">
               Campaign ad matrices update across live nodes within 60 seconds of processing confirmation.

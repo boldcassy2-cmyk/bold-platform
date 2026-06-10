@@ -1,158 +1,195 @@
 import React, { useState } from 'react';
 
-export default function CeoDashboard() {
-  // Global Platform Metrics Node
-  const [platformStats, setPlatformStats] = useState({
-    totalEscrowVolume: 24850000,
-    activeMerchants: 142,
-    disputedClaims: 2,
-    disbursedPayouts: 18900000
-  });
-
-  // Pending Verifications Queue Mock Data
-  const [pendingMerchants, setPendingMerchants] = useState([
-    { id: 'M-9921', name: 'Alaba Gadget Logistics', niche: 'Premium Gadgetry & Electronics', date: '2026-06-02' },
-    { id: 'M-9924', name: 'Gidi Streetwear Collective', niche: "Men's Streetwear & Apparel", date: '2026-06-02' }
+/**
+ * BOLD.NG CENTRAL COMMAND EXECUTIVE DASHBOARD
+ * Exclusive administrator panel providing systemic control of platform clearances,
+ * clearing-house reserves, and immediate vault overrides.
+ */
+export default function CeoDashboard({ transactions, setTransactions }) {
+  const liveLedger = transactions || [];
+  const [auditLog, setAuditLog] = useState([
+    { time: '10:14', action: 'System integrity routine executed successfully.' }
   ]);
 
-  const approveMerchant = (id, name) => {
-    setPendingMerchants(prev => prev.filter(m => m.id !== id));
-    setPlatformStats(prev => ({ ...prev, activeMerchants: prev.activeMerchants + 1 }));
-    alert(`Administrative Command Executed: ${name} verified and deployed to main marketplace index router.`);
+  // LIVE TELEMETRY CALCULATIONS
+  const globalVolume = liveLedger.reduce((sum, tx) => sum + tx.amount, 0);
+  const frozenVaultsCount = liveLedger.filter(tx => tx.status === 'In Escrow Vault' || tx.status === 'Hub Dispatched').length;
+  
+  // LOGISTICS DISPATCH DISTRIBUTION MATRIX
+  const hubMetrics = {
+    lagos: liveLedger.filter(tx => tx.hub?.includes('Lagos')).length,
+    abuja: liveLedger.filter(tx => tx.hub?.includes('Abuja')).length,
+    ph: liveLedger.filter(tx => tx.hub?.includes('Port Harcourt')).length
+  };
+
+  // SYSTEM INTERVENTION HOOK: AUTHORIZE IMMEDIATE PAYOUT DISBURSEMENT
+  const handleImmediateDisbursement = (targetTxId) => {
+    setTransactions(prevTx => 
+      prevTx.map(tx => tx.id === targetTxId ? { ...tx, status: 'Completed' } : tx)
+    );
+    
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setAuditLog(prev => [
+      { time: timestamp, action: `CEO Override: Forced immediate payout clearance on ${targetTxId}` },
+      ...prev
+    ]);
+  };
+
+  // SYSTEM INTERVENTION HOOK: HALT & ISOLATE HIGH RISK ASSETS
+  const handleSystemicHalt = (targetTxId) => {
+    setTransactions(prevTx => 
+      prevTx.map(tx => tx.id === targetTxId ? { ...tx, status: 'Halted by Admin' } : tx)
+    );
+    
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setAuditLog(prev => [
+      { time: timestamp, action: `🚨 RISK INTERVENTION: Transaction ${targetTxId} frozen under audit` },
+      ...prev
+    ]);
   };
 
   return (
-    <main className="max-w-6xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white">
+    <div className="max-w-6xl mx-auto my-6 px-4 space-y-8 text-white selection:bg-[#FF5A00]">
       
-      {/* CEO BANNER BRANDING MATRIX */}
-      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5A00]/5 rounded-full transform translate-x-24 -translate-y-24" />
-        <div className="relative z-10">
-          <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
-            👑 ROBUST ROOT AUTHORITY ACCESS
+      {/* EXECUTIVE IDENTITY BANNER */}
+      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="text-left relative z-10">
+          <span className="text-[9px] bg-amber-500 text-slate-950 font-black tracking-widest px-2.5 py-0.5 rounded uppercase">
+            Root Administrator
           </span>
-          <h1 className="text-2xl font-black text-white mt-1">CEO Master Command Center</h1>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Global infrastructure analytics, escrow vault clearing, and merchant node vetting registries.</p>
+          <h2 className="text-3xl font-black tracking-tight mt-1">Ecosystem Central Command</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Global ledger administration matrix and risk mediation grid.</p>
         </div>
-        <div className="bg-[#0B132B] border border-slate-800 px-4 py-2.5 rounded-2xl text-xs font-bold shrink-0">
-          <span className="text-slate-400">Operator Identity:</span> <span className="text-[#FF5A00]">Dedon Cassidy (CEO)</span>
+        <div className="bg-[#0B132B] px-4 py-2 rounded-2xl border border-slate-800 text-right font-mono text-xs">
+          <span className="text-slate-500">System Status:</span> <span className="text-emerald-400 font-bold">GRID ONLINE</span>
         </div>
       </div>
 
-      {/* METRIC SCORECARD ARRAYS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* STAT 1 */}
-        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-lg">
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Total Vault Capital Lock</p>
-          <h3 className="text-xl font-black text-white font-mono mt-1">₦{platformStats.totalEscrowVolume.toLocaleString()}</h3>
-          <span className="text-[9px] text-emerald-400 font-bold block mt-1">🔒 100% Escrow Insurance Ratio</span>
+      {/* CORE FINANCIAL OVERVIEW TELEMETRY */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 text-left">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Ecosystem Gross Volume</span>
+          <h3 className="text-3xl font-mono font-black text-white mt-2">₦{globalVolume.toLocaleString()}</h3>
+          <p className="text-[11px] text-slate-500 mt-1">Aggregated platform escrow transactions</p>
         </div>
 
-        {/* STAT 2 */}
-        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-lg">
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Disbursed Vendor Capital</p>
-          <h3 className="text-xl font-black text-emerald-400 font-mono mt-1">₦{platformStats.disbursedPayouts.toLocaleString()}</h3>
-          <span className="text-[9px] text-slate-400 font-semibold block mt-1">⚡ Instant Settlement Clearance Loops</span>
+        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 text-left">
+          <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider">Active Isolated Vaults</span>
+          <h3 className="text-3xl font-mono font-black text-amber-400 mt-2">{frozenVaultsCount} Nodes</h3>
+          <p className="text-[11px] text-slate-500 mt-1">Funds currently resting in escrow safety cells</p>
         </div>
 
-        {/* STAT 3 */}
-        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-lg">
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Active Verified Channels</p>
-          <h3 className="text-xl font-black text-white font-mono mt-1">{platformStats.activeMerchants}</h3>
-          <span className="text-[9px] text-amber-500 font-bold block mt-1">🔥 Escalating Network Density</span>
+        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 text-left">
+          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider">Logistics Hub Pipeline Load</span>
+          <div className="grid grid-cols-3 gap-2 mt-4 font-mono text-center text-xs">
+            <div className="bg-[#0B132B] p-2 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-500 block uppercase font-sans font-bold">LOS</span>
+              <span className="text-white font-black">{hubMetrics.lagos}</span>
+            </div>
+            <div className="bg-[#0B132B] p-2 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-500 block uppercase font-sans font-bold">ABV</span>
+              <span className="text-white font-black">{hubMetrics.abuja}</span>
+            </div>
+            <div className="bg-[#0B132B] p-2 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-500 block uppercase font-sans font-bold">PHC</span>
+              <span className="text-white font-black">{hubMetrics.ph}</span>
+            </div>
+          </div>
         </div>
-
-        {/* STAT 4 */}
-        <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-lg">
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Active System Escalations</p>
-          <h3 className={`text-xl font-black font-mono mt-1 ${platformStats.disputedClaims > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
-            {platformStats.disputedClaims}
-          </h3>
-          <span className="text-[9px] text-slate-400 font-semibold block mt-1">⚖️ Neutral Arbitrage Matrix Hold</span>
-        </div>
-
       </div>
 
-      {/* LOWER SECTION: APPROVAL PIPELINE GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      {/* LOWER SPLIT ARCHITECTURE: COMMAND SWITCH GRID & AUDIT RUNWAY */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
-        {/* MERCHANT VETTING CONTAINER */}
-        <div className="lg:col-span-2 bg-[#16223F] p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-wider border-b border-slate-800 pb-3 flex items-center justify-between">
-            <span>📋 Incoming Merchant Nodes Vetting Queue</span>
-            <span className="text-xs bg-[#0B132B] px-2.5 py-0.5 rounded-full font-mono font-bold text-slate-400">{pendingMerchants.length} Pending</span>
-          </h3>
+        {/* INTERACTIVE CENTRAL INTERVENTION GRID */}
+        <div className="lg:col-span-2 bg-[#16223F] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+          <div className="p-5 border-b border-slate-800/60 bg-[#0B132B]/20 text-left">
+            <h4 className="font-black text-xs uppercase tracking-widest text-slate-300">Platform Transaction Matrix Override</h4>
+          </div>
 
-          {pendingMerchants.length > 0 ? (
-            <div className="space-y-3">
-              {pendingMerchants.map((merchant) => (
-                <div key={merchant.id} className="bg-[#0B132B] p-4 rounded-xl border border-slate-900 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition hover:border-slate-800">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-black text-white">{merchant.name}</h4>
-                      <span className="text-[9px] font-mono text-slate-500 font-bold bg-slate-950 px-1.5 py-0.2 rounded">{merchant.id}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium">Niche: {merchant.niche}</p>
-                    <p className="text-[9px] text-slate-500 font-mono">Registry Submission: {merchant.date}</p>
-                  </div>
-                  
-                  <button
-                    onClick={() => approveMerchant(merchant.id, merchant.name)}
-                    className="bg-[#FF5A00] text-white font-black text-[10px] uppercase tracking-wider px-4 py-2.5 rounded-lg border-none cursor-pointer hover:brightness-110 transition shrink-0 w-full sm:w-auto"
-                  >
-                    ⚡ Authorize Store Node
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-[#0B132B] rounded-2xl border border-dashed border-slate-800">
-              <p className="text-2xl">🎉</p>
-              <p className="text-xs font-bold text-slate-400 uppercase mt-1">Vetting Queue Clear</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">All global application instances successfully routed to the production registry array.</p>
-            </div>
-          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#0B132B]/60 text-[9px] font-black tracking-widest text-slate-400 uppercase border-b border-slate-800">
+                  <th className="py-3 px-4">Transaction Details</th>
+                  <th className="py-3 px-4">Settlement Value</th>
+                  <th className="py-3 px-4">Status Flag</th>
+                  <th className="py-3 px-4 text-right">Administrative Intervention</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/40 text-xs font-medium">
+                {liveLedger.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="py-12 text-center text-slate-500">No telemetry streams captured on the network.</td>
+                  </tr>
+                ) : (
+                  liveLedger.map((tx) => {
+                    const isClosed = tx.status === 'Completed';
+                    const isHalted = tx.status === 'Halted by Admin';
+
+                    return (
+                      <tr key={tx.id} className="hover:bg-[#0B132B]/20 transition-colors">
+                        <td className="py-4 px-4 text-left">
+                          <span className="font-mono font-black text-[#FF5A00] block">{tx.id}</span>
+                          <span className="font-bold text-white block line-clamp-1 mt-0.5">{tx.title}</span>
+                        </td>
+                        <td className="py-4 px-4 font-mono font-bold text-white">₦{tx.amount.toLocaleString()}</td>
+                        <td className="py-4 px-4">
+                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                            isClosed ? 'bg-emerald-500/10 text-emerald-400' : isHalted ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-400 animate-pulse'
+                          }`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-right">
+                          {!isClosed && !isHalted ? (
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => handleImmediateDisbursement(tx.id)}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Payout
+                              </button>
+                              <button 
+                                onClick={() => handleSystemicHalt(tx.id)}
+                                className="bg-red-950/40 hover:bg-red-950/80 text-red-400 border border-red-900/50 text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Freeze
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-mono italic">Override Locked</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* SECURITY & RISK PARAMS OVERRIDE CARD */}
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-wider border-b border-slate-800 pb-3 text-white">
-            🛠️ Operational System Control Toggles
-          </h3>
+        {/* ADMINISTRATIVE SYSTEM AUDIT TRACK RUNWAY */}
+        <div className="lg:col-span-1 bg-[#16223F] border border-slate-800 rounded-3xl p-6 space-y-4">
+          <div className="border-b border-slate-800/60 pb-3 text-left">
+            <h4 className="font-black text-xs uppercase tracking-widest text-slate-300">CEO Systemic Security Audit</h4>
+            <p className="text-[10px] text-slate-500">Live sequential capture of administrative interventions</p>
+          </div>
 
-          <div className="space-y-2.5 text-xs font-semibold">
-            <button 
-              onClick={() => alert("Platform-wide listing updates securely frozen. Marketplace running on historical static nodes.")}
-              className="w-full bg-[#0B132B] text-slate-300 border border-slate-800 hover:border-amber-600 rounded-xl py-3 px-4 text-left flex items-center justify-between transition group"
-            >
-              <span>⏸️ Freeze Marketplace Registry</span>
-              <span className="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.2 rounded uppercase font-black tracking-wide">Maintenance</span>
-            </button>
-
-            <button 
-              onClick={() => alert("Global Escrow Core Ledger snapshotted and encrypted successfully.")}
-              className="w-full bg-[#0B132B] text-slate-300 border border-slate-800 hover:border-emerald-600 rounded-xl py-3 px-4 text-left flex items-center justify-between transition"
-            >
-              <span>💾 Snapshot Escrow Ledger Core</span>
-              <span className="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.2 rounded uppercase font-black tracking-wide">Backup</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                const multi = prompt("Input updated global transaction buffer factor (e.g., 1.5):", "1.0");
-                if (multi) alert(`Global transactional pipeline buffer re-indexed to factor level: ${multi}`);
-              }}
-              className="w-full bg-[#0B132B] text-slate-300 border border-slate-800 hover:border-[#FF5A00] rounded-xl py-3 px-4 text-left flex items-center justify-between transition"
-            >
-              <span>⚙️ Tune Pipeline Performance Factor</span>
-              <span className="text-[9px] bg-slate-950 text-slate-400 px-1.5 py-0.2 rounded uppercase font-black tracking-wide font-mono">v2.0</span>
-            </button>
+          <div className="space-y-4 max-h-[320px] overflow-y-auto pr-1 text-left font-mono text-[11px]">
+            {auditLog.map((log, index) => (
+              <div key={index} className="bg-[#0B132B] p-3 rounded-xl border border-slate-800/80 leading-relaxed text-slate-300">
+                <span className="text-[#FF5A00] font-bold block mb-1">⏰ [{log.time}]</span>
+                {log.action}
+              </div>
+            ))}
           </div>
         </div>
 
       </div>
 
-    </main>
+    </div>
   );
 }
