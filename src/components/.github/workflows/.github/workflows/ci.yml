@@ -1,0 +1,32 @@
+name: Bold.ng Compilation Matrix Check
+
+# Trigger this automation loop every time code is pushed to the repository
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout your cloud repository code matrix
+      - name: Checkout Code Node
+        uses: actions/checkout@v4
+
+      # Step 2: Initialize clean Node.js environment
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Step 3: Install pristine framework dependencies
+      - name: Install Project Dependencies
+        run: npm ci
+
+      # Step 4: Run the production build compiler to check for breaking bugs
+      - name: Compile Vite Production Build
+        run: npm run build
