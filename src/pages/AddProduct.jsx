@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { db, auth } from '../firebase'; // Ensure auth is exported from firebase.js
+import React, { useState, useEffect } from 'react';
+import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function AddProduct({ setCurrentPage, onAddProduct }) {
   const [title, setTitle] = useState('');
@@ -9,8 +10,19 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
   const [location, setLocation] = useState('Lagos');
   const [vendorName, setVendorName] = useState('');
   const [specification, setSpecification] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [user, setUser] = useState(auth.currentUser);
+
+  // Listen for Firebase auth state to ensure user is fully loaded
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const getCategoryEmoji = (cat) => {
     switch (cat) {
@@ -23,14 +35,52 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
     }
   };
 
+  // Hardened Cloudinary Direct Upload Handler with Debug Logging
+  const uploadToCloudinary = async (file) => {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'Bold_ng_page';
+
+    console.log("🔍 [Cloudinary Debug] Cloud Name:", cloudName);
+    console.log("🔍 [Cloudinary Debug] Upload Preset:", uploadPreset);
+
+    if (!cloudName || cloudName === "your_actual_cloud_name") {
+      throw new Error("Missing or placeholder Cloud Name! Update VITE_CLOUDINARY_CLOUD_NAME in your .env file and restart Vite.");
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+    console.log("🚀 [Cloudinary Debug] Sending POST request to:", uploadUrl);
+
+    try {
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log("📥 [Cloudinary Debug] Response received:", data);
+
+      if (data.secure_url) {
+        return data.secure_url;
+      } else {
+        throw new Error(data.error?.message || "Cloudinary rejected the upload.");
+      }
+    } catch (netError) {
+      console.error("❌ [Cloudinary Network Error]:", netError);
+      throw new Error(`Image upload failed: ${netError.message}. Check your internet connection or adblocker.`);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const currentUser = auth.currentUser;
-
-    // 1. Check if user is logged in
-    if (!currentUser) {
-      alert("Security Error: You must be logged in to publish inventory assets.");
+    // 1. Validate auth with state listener
+    const activeUser = user || auth.currentUser;
+    if (!activeUser) {
+      alert("Security Error: Authentication session not detected. Please refresh or log in again.");
       return;
     }
 
@@ -42,25 +92,33 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
 
     setIsSubmitting(true);
 
-    // Payload structured specifically for Firestore write
-    const productPayload = {
-      title: title.trim(),
-      price: parsedPrice,
-      category,
-      location,
-      vendorName: vendorName.trim(),
-      merchantId: currentUser.uid,
-      meta: `Vendor: ${vendorName.trim()} • ${specification.trim() || 'Verified Genuine Escrow Stock'}`,
-      img: imageUrl.trim() || getCategoryEmoji(category),
-      status: 'AVAILABLE',
-      createdAt: serverTimestamp(),
-    };
-
     try {
-      // 2. Add document to Firestore inventory collection
+      let finalImageUrl = imageUrl.trim();
+
+      // 2. If a local image file was chosen, upload to Cloudinary first
+      if (imageFile) {
+        setUploadStatus('Uploading image to Cloudinary...');
+        finalImageUrl = await uploadToCloudinary(imageFile);
+      }
+
+      setUploadStatus('Publishing asset to Firestore...');
+
+      const productPayload = {
+        title: title.trim(),
+        price: parsedPrice,
+        category,
+        location,
+        vendorName: vendorName.trim(),
+        merchantId: activeUser.uid,
+        meta: `Vendor: ${vendorName.trim()} • ${specification.trim() || 'Verified Genuine Escrow Stock'}`,
+        img: finalImageUrl || getCategoryEmoji(category),
+        status: 'AVAILABLE',
+        createdAt: serverTimestamp(),
+      };
+
+      // 3. Add document to Firestore inventory collection
       const docRef = await addDoc(collection(db, 'inventory'), productPayload);
 
-      // Client-side payload formatted cleanly (avoid passing raw serverTimestamp to local state)
       const publishedProduct = {
         id: docRef.id,
         ...productPayload,
@@ -71,15 +129,15 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
         onAddProduct(publishedProduct);
       }
 
-      // Navigate back to marketplace smoothly
       if (typeof setCurrentPage === 'function') {
         setCurrentPage('marketplace');
       }
     } catch (error) {
-      console.error("Firestore Upload Error:", error);
+      console.error("Upload Error:", error);
       alert(`Upload blocked: ${error.message || 'Unknown network error'}`);
     } finally {
       setIsSubmitting(false);
+      setUploadStatus('');
     }
   };
 
@@ -187,15 +245,25 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
           </div>
         </div>
 
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Image URL (Optional)</label>
+        {/* IMAGE UPLOAD SECTION */}
+        <div className="space-y-2">
+          <label className="block text-[10px] font-black text-slate-400 uppercase">Product Image File (Cloudinary)</label>
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={(e) => setImageFile(e.target.files[0])} 
+            className="w-full text-xs text-slate-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-[#FF5A00] file:text-white hover:file:brightness-110 cursor-pointer bg-[#0B132B] border border-slate-700 rounded-xl"
+          />
           <input 
             type="url" 
             value={imageUrl} 
             onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://... (Leave empty to default to category icon)" 
+            placeholder="Or paste direct image URL here..." 
             className="w-full px-4 py-2.5 rounded-xl border border-slate-700 text-xs font-semibold bg-[#0B132B] text-white focus:outline-none focus:border-[#FF5A00]"
           />
+          {imageFile && (
+            <p className="text-[10px] text-emerald-400 font-bold">Selected file: {imageFile.name}</p>
+          )}
         </div>
 
         <div className="pt-2">
@@ -208,7 +276,7 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
                 : 'bg-[#FF5A00] hover:brightness-110'
             }`}
           >
-            {isSubmitting ? '⚡ Publishing Asset...' : '🚀 Publish Secure Escrow Asset'}
+            {isSubmitting ? `⚡ ${uploadStatus || 'Publishing Asset...'}` : '🚀 Publish Secure Escrow Asset'}
           </button>
         </div>
 

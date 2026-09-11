@@ -1,124 +1,140 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { auth } from '../firebase';
 
-export default function EscrowTracker({ transactions, setCurrentPage }) {
-  const liveLedger = transactions || [];
+export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPayment, onNavigate }) {
+  const currentUser = auth?.currentUser;
+  const [loading, setLoading] = useState(false);
 
-  const activeHoldingTotal = liveLedger
-    .filter(tx => tx.status === 'In Escrow Vault')
-    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  const totalAmountInNaira = cartItems.reduce((sum, item) => sum + (Number(item.price || 0) * (item.quantity || 1)), 0);
 
-  const completedPayoutTotal = liveLedger
-    .filter(tx => tx.status === 'Completed')
-    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  const handlePaystackPayment = () => {
+    if (cartItems.length === 0) {
+      alert("Your cart or checkout payload is empty.");
+      return;
+    }
+
+    // Replace with your actual Paystack Public Key (pk_test_... or pk_live_...)
+    const publicKey = "pk_live_0c84f6825e054064023e208a41e1f3ad34cf0f2d";
+    const amountInKobo = totalAmountInNaira * 100;
+
+    // Verify Paystack SDK is available on window
+    if (!window.PaystackPop) {
+      alert("Paystack SDK failed to load. Please check your internet connection or ad blocker.");
+      return;
+    }
+
+    setLoading(true);
+
+    const handler = window.PaystackPop.setup({
+      key: publicKey,
+      email: currentUser?.email || "buyer@bold.ng",
+      amount: amountInKobo,
+      currency: 'NGN',
+      ref: 'BOLD-ESCROW-' + Date.now(),
+      metadata: {
+        custom_fields: [
+          {
+            display_name: "Platform",
+            variable_name: "platform",
+            value: "bold.ng Escrow Vault"
+          }
+        ]
+      },
+      callback: function(response) {
+        setLoading(false);
+        console.log("Payment complete! Reference: ", response.reference);
+        
+        // Build concise title summary from items
+        const itemSummary = cartItems.length === 1 
+          ? `${cartItems[0].title} (x${cartItems[0].quantity || 1})`
+          : `${cartItems.length} items bundle (${cartItems[0]?.title || 'Multi-item'})`;
+
+        // Pass confirmed payment payload back to App state
+        onConfirmPayment({
+          id: response.reference || ('TX-' + Math.floor(1000 + Math.random() * 9000)),
+          title: itemSummary,
+          amount: totalAmountInNaira,
+          status: 'In Escrow Vault',
+          date: new Date().toISOString().split('T')[0],
+          hub: 'Lagos Hub',
+          items: cartItems
+        });
+      },
+      onClose: function() {
+        setLoading(false);
+        alert('Payment window closed. Your escrow deposit was not completed.');
+      }
+    });
+
+    handler.openIframe();
+  };
 
   return (
-    <div className="max-w-5xl mx-auto my-6 px-4 space-y-8 text-white selection:bg-[#FF5A00]">
-      
-      {/* Ecosystem Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight text-left">Ecosystem Escrow Vaults</h2>
-          <p className="text-xs text-slate-400 mt-1 text-left">
-            Real-time tracking of clearing-house allocations. Funds remain fully fortified inside isolation nodes.
-          </p>
-        </div>
-        {setCurrentPage && (
+    <div className="max-w-3xl mx-auto my-8 px-4 text-white">
+      <div className="bg-[#16223F] p-8 rounded-3xl border border-slate-800 shadow-2xl space-y-6">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+          <div>
+            <span className="text-[10px] font-black tracking-widest text-[#FF5A00] uppercase">Secure Gateway</span>
+            <h2 className="text-2xl font-black mt-1">Escrow Deposit Checkout</h2>
+          </div>
           <button 
             type="button"
-            onClick={() => setCurrentPage('marketplace')}
-            className="bg-[#16223F] hover:bg-slate-800 border border-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+            onClick={onCancel}
+            className="text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-700 cursor-pointer"
           >
-            ← Explore Market
+            ✕ Cancel
           </button>
-        )}
-      </div>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
-          <span className="text-[9px] font-black tracking-widest text-[#FF5A00] uppercase block text-left">
-            🔒 SECURED CAPITAL IN ESCROW
-          </span>
-          <p className="text-3xl font-mono font-black mt-3 text-left">
-            ₦{activeHoldingTotal.toLocaleString()}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1 text-left">Currently isolated pending delivery clearance</p>
         </div>
 
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
-          <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase block text-left">
-            ✅ TOTAL DISBURSED PAYOUTS
-          </span>
-          <p className="text-3xl font-mono font-black mt-3 text-left">
-            ₦{completedPayoutTotal.toLocaleString()}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1 text-left">Successfully wired out to verified vendors</p>
-        </div>
-      </div>
-
-      {/* Transaction Table */}
-      <div className="bg-[#16223F] rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-        <div className="p-6 border-b border-slate-800/60 flex justify-between items-center">
-          <h3 className="font-black text-sm uppercase tracking-wider text-slate-300">Vault Settlement Registry</h3>
-          <span className="text-[10px] font-bold bg-[#0B132B] px-3 py-1 rounded-full border border-slate-700 text-slate-400">
-            {liveLedger.length} Active Records
-          </span>
-        </div>
-
-        {liveLedger.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-sm">
-            No escrow transactions found in this deployment sequence.
+        {/* Order Summary List */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Checkout Items</h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+            {cartItems.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center bg-[#0B132B] p-4 rounded-2xl border border-slate-800/80">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{item.img || '📦'}</span>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">{item.title}</h4>
+                    <p className="text-[11px] text-slate-400">Qty: {item.quantity || 1} | {item.location || 'Lagos Hub'}</p>
+                  </div>
+                </div>
+                <span className="font-mono font-black text-[#FF5A00]">
+                  ₦{(Number(item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                </span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse font-sans">
-              <thead>
-                <tr className="bg-[#0B132B]/60 text-[10px] font-black tracking-widest text-slate-400 uppercase border-b border-slate-800">
-                  <th className="py-4 px-6">Vault ID</th>
-                  <th className="py-4 px-6">Asset Item</th>
-                  <th className="py-4 px-6">Settlement Value</th>
-                  <th className="py-4 px-6 text-center">Operational Status</th>
-                  <th className="py-4 px-6 text-right">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/40 text-xs font-medium text-slate-200">
-                {liveLedger.map((tx) => {
-                  const isInEscrow = tx.status === 'In Escrow Vault';
-                  
-                  return (
-                    <tr key={tx.id} className="hover:bg-[#0B132B]/30 transition-colors group">
-                      <td className="py-4 px-6 font-mono font-bold text-[#FF5A00] tracking-tight">
-                        {tx.id}
-                      </td>
-                      <td className="py-4 px-6 font-bold text-white group-hover:text-[#FF5A00] transition-colors">
-                        {tx.title}
-                      </td>
-                      <td className="py-4 px-6 font-mono font-black text-white">
-                        ₦{Number(tx.amount || 0).toLocaleString()}
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <span className={`inline-block text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${
-                          isInEscrow 
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
-                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        }`}>
-                          {isInEscrow ? '🔒 ' : '🔓 '} {tx.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-right font-mono text-slate-400">
-                        {tx.date}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        </div>
 
+        {/* Total Calculation */}
+        <div className="bg-[#0B132B] p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+          <div>
+            <p className="text-xs text-slate-400 font-bold uppercase">Total Escrow Allocation</p>
+            <p className="text-[10px] text-emerald-400 mt-0.5">🔒 Secured until delivery inspection</p>
+          </div>
+          <span className="text-2xl font-mono font-black text-white">
+            ₦{totalAmountInNaira.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Action Button */}
+        <button
+          type="button"
+          onClick={handlePaystackPayment}
+          disabled={loading || cartItems.length === 0}
+          className="w-full bg-[#FF5A00] hover:bg-[#e05000] text-white font-black py-4 rounded-2xl transition-all shadow-[0_4px_20px_rgba(255,90,0,0.4)] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+        >
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Initializing Paystack Gateway...
+            </>
+          ) : (
+            <>💳 Authorize Escrow Deposit (₦{totalAmountInNaira.toLocaleString()})</>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

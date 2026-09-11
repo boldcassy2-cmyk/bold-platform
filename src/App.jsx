@@ -226,9 +226,10 @@ export default function App() {
     return cartItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [cartItems]);
 
+  // Unified Single-Item or Basket Checkout Trigger
   const handleTriggerCheckout = useCallback((itemContext) => {
-    setActiveTxPayload(itemContext);
-    setCurrentPage('processor');
+    setActiveTxPayload(itemContext ? { ...itemContext, quantity: itemContext.quantity || 1 } : null);
+    setCurrentPage('escrow-checkout');
   }, []);
 
   // Product Addition Handler
@@ -331,10 +332,14 @@ export default function App() {
       case 'escrow-checkout':
         return (
           <EscrowCheckout
-            cartItems={cartItems}
-            onCancel={() => setCurrentPage('cart')}
+            cartItems={activeTxPayload ? [activeTxPayload] : cartItems}
+            onCancel={() => {
+              setActiveTxPayload(null);
+              setCurrentPage(activeTxPayload ? 'marketplace' : 'cart');
+            }}
             onConfirmPayment={(order) => {
-              // Clear cart state and local storage upon successful payment
+              // Clear active payload and cart items upon successful payment
+              setActiveTxPayload(null);
               setCartItems([]);
               localStorage.removeItem('bold_cart_items');
               localStorage.removeItem('bold_cart');
@@ -352,7 +357,10 @@ export default function App() {
             setCartItems={setCartItems} 
             setCurrentPage={setCurrentPage} 
             setTransactions={setGlobalTransactions} 
-            onProceedToEscrow={() => setCurrentPage('checkout')}
+            onProceedToEscrow={() => {
+              setActiveTxPayload(null); // Clear single item override to check out full cart bundle
+              setCurrentPage('escrow-checkout');
+            }}
           />
         );
       default:
@@ -382,7 +390,10 @@ export default function App() {
               <button
                 key={nav.id}
                 type="button"
-                onClick={() => setCurrentPage(nav.id)}
+                onClick={() => {
+                  setActiveTxPayload(null);
+                  setCurrentPage(nav.id);
+                }}
                 className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
                   currentPage === nav.id ? 'bg-[#FF5A00] text-white' : 'bg-slate-900/60 hover:bg-slate-800 text-slate-300'
                 }`}
@@ -424,7 +435,10 @@ export default function App() {
             {/* Basket Button */}
             <button 
               type="button" 
-              onClick={() => setCurrentPage('cart')} 
+              onClick={() => {
+                setActiveTxPayload(null);
+                setCurrentPage('cart');
+              }} 
               className={`text-xs font-black px-4 py-2 rounded-xl border-none cursor-pointer flex items-center gap-2 transition-colors ${
                 currentPage === 'cart' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] hover:bg-slate-900 text-slate-200'
               }`}
@@ -465,7 +479,10 @@ export default function App() {
           <div className="bg-[#0f1936] border-b border-slate-800 px-6 py-2 sticky top-[78px] z-40 shadow-md">
             <button 
               type="button" 
-              onClick={() => setCurrentPage('marketplace')} 
+              onClick={() => {
+                setActiveTxPayload(null);
+                setCurrentPage('marketplace');
+              }} 
               className="bg-transparent border-none text-slate-300 text-xs font-bold flex items-center gap-2 cursor-pointer hover:text-[#FF5A00] transition-colors"
             >
               ← Back to Marketplace

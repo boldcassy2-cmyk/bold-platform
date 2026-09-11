@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db } from "../firebase";
+import { db, storage } from "../firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // Marketplace Category Taxonomy Definition
@@ -113,7 +113,6 @@ const compressImage = (file) => {
 };
 
 export default function ProductCatalogForm({ onAddProductComplete, setCurrentPage }) {
-  // Form Data State
   const [formData, setFormData] = useState({
     title: '',
     price: '',
@@ -124,23 +123,18 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     meta: ''
   });
 
-  // Media File State
   const [media, setMedia] = useState({
     image: null,
     video: null,
     pdf: null
   });
 
-  // Live Image Preview URL State
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-
-  // Status & UI Feedback State
   const [uploading, setUploading] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Handle Category Switch & Update Available Subcategories
   const handleCategoryChange = (e) => {
     const selectedCategory = e.target.value;
     const defaultSub = CATEGORY_DATA[selectedCategory]?.subcategories[0] || '';
@@ -156,7 +150,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  // Handle Image File Selection & Preview Generation
   const handleImageSelect = (file) => {
     setErrorMessage('');
     if (!file) {
@@ -173,13 +166,11 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
 
     setMedia((prev) => ({ ...prev, image: file }));
 
-    // Revoke previous object URL to prevent memory leaks
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     const objectUrl = URL.createObjectURL(file);
     setImagePreviewUrl(objectUrl);
   };
 
-  // Clean up Object URL on Unmount
   useEffect(() => {
     return () => {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
@@ -201,10 +192,12 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     setMedia((prev) => ({ ...prev, [key]: file }));
   };
 
-  // Firebase Upload Handler
   const executeFileUpload = useCallback((file, folderPath, label, startWeight, weightShare) => {
     return new Promise((resolve, reject) => {
       if (!file) return resolve('');
+
+      setStatusText(`Uploading ${label}...`);
+      setUploadProgress(startWeight + 5);
 
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
       const uniqueFileName = `${Date.now()}_${sanitizedName}`;
@@ -216,8 +209,10 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         (snapshot) => {
           const totalBytes = snapshot.totalBytes || 1;
           const filePercent = snapshot.bytesTransferred / totalBytes;
-          const currentTotalProgress = Math.round(startWeight + filePercent * weightShare);
-          setStatusText(`Uploading ${label}...`);
+          const currentTotalProgress = Math.min(
+            95,
+            Math.round(startWeight + filePercent * weightShare)
+          );
           setUploadProgress(currentTotalProgress);
         },
         (error) => {
@@ -226,6 +221,10 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         },
         async () => {
           try {
+            setStatusText(`Processing ${label}...`);
+            const targetCompletedProgress = Math.min(95, startWeight + weightShare);
+            setUploadProgress(targetCompletedProgress);
+
             const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
             resolve(downloadUrl);
           } catch (err) {
@@ -236,7 +235,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     });
   }, []);
 
-  // Form Submit Handler
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
@@ -253,27 +251,26 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
 
     try {
       setUploading(true);
-      setUploadProgress(5);
+      setUploadProgress(10);
+      setStatusText('Optimizing image compression...');
 
-      // Upload Primary Image
-      setStatusText('Optimizing product image...');
       const compressedImage = await compressImage(media.image);
-      const imageUrl = await executeFileUpload(compressedImage, 'products/images', 'Product Image', 5, 35);
+      
+      setUploadProgress(20);
+      const imageUrl = await executeFileUpload(compressedImage, 'products/images', 'Product Image', 20, 50);
 
-      // Upload Video (Optional)
       let videoUrl = '';
       if (media.video) {
-        videoUrl = await executeFileUpload(media.video, 'products/videos', 'Product Video', 40, 40);
+        videoUrl = await executeFileUpload(media.video, 'products/videos', 'Product Video', 70, 15);
       }
 
-      // Upload PDF Document (Optional)
       let pdfUrl = '';
       if (media.pdf) {
-        pdfUrl = await executeFileUpload(media.pdf, 'products/documents', 'Verification Document', 80, 15);
+        pdfUrl = await executeFileUpload(media.pdf, 'products/documents', 'Verification Document', 85, 10);
       }
 
-      setStatusText('Saving product to catalog...');
-      setUploadProgress(98);
+      setStatusText('Saving catalog entry to database...');
+      setUploadProgress(95);
 
       const payload = {
         id: Date.now(),
@@ -293,9 +290,19 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         dateAdded: new Date().toISOString().split('T')[0]
       };
 
-      await onAddProductComplete(payload);
+      if (typeof onAddProductComplete === 'function') {
+        await onAddProductComplete(payload);
+      }
+      
       setUploadProgress(100);
-      setCurrentPage('marketplace');
+      setStatusText('Upload Complete!');
+      
+      setTimeout(() => {
+        if (typeof setCurrentPage === 'function') {
+          setCurrentPage('marketplace');
+        }
+      }, 400);
+
     } catch (err) {
       console.error('Submission failed:', err);
       setErrorMessage(`Upload failed: ${err.message || 'Please check network and try again.'}`);
@@ -309,8 +316,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
   return (
     <div className="max-w-4xl mx-auto my-6 px-4 text-white text-left selection:bg-[#FF5A00]">
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden">
-        
-        {/* Portal Header */}
         <div className="mb-8 border-b border-slate-800 pb-5 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5A00] bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20">
@@ -325,7 +330,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
           </div>
         </div>
 
-        {/* Global Alert Notification */}
         {errorMessage && (
           <div className="mb-6 p-4 bg-red-950/40 border border-red-900/50 rounded-2xl flex items-center gap-3 text-xs text-red-400 font-bold">
             <span className="text-base">⚠️</span>
@@ -334,8 +338,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-8">
-          
-          {/* Section 1: Product Image & Device Confirmation */}
+          {/* 1. Image Upload Section */}
           <div className="space-y-3">
             <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-widest flex items-center gap-2">
               <span>🖼️</span> 1. Primary Product Image (Required)
@@ -361,7 +364,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
                   </div>
                 </div>
               ) : (
-                /* Confirmation Card with Device Image Preview */
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-900/60 p-4 rounded-xl border border-slate-700">
                     <div className="relative group w-44 h-44 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center shrink-0 shadow-lg">
@@ -402,7 +404,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
             </div>
           </div>
 
-          {/* Section 2: Basic Product Information */}
+          {/* 2. Basic Info Section */}
           <div className="space-y-4">
             <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-widest flex items-center gap-2">
               <span>📝</span> 2. Basic Information
@@ -424,7 +426,6 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
                 />
               </div>
 
-              {/* Dynamic Category & Subcategory Selectors */}
               <div className="flex flex-col space-y-1.5">
                 <label htmlFor="category" className="text-xs font-black text-slate-300 uppercase tracking-wider">
                   Main Category <span className="text-[#FF5A00]">*</span>
@@ -463,7 +464,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
             </div>
           </div>
 
-          {/* Section 3: Pricing, Inventory & Location */}
+          {/* 3. Pricing & Logistics */}
           <div className="space-y-4">
             <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-widest flex items-center gap-2">
               <span>💰</span> 3. Pricing & Logistics
@@ -536,7 +537,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
             </div>
           </div>
 
-          {/* Section 4: Supplemental Media & Documentation */}
+          {/* 4. Verification Files */}
           <div className="space-y-4 border-t border-slate-800/80 pt-6">
             <h3 className="text-xs font-black text-[#FF5A00] uppercase tracking-widest flex items-center gap-2">
               <span>📎</span> 4. Additional Verification & Media (Optional)
@@ -560,7 +561,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
             </div>
           </div>
 
-          {/* Progress Tracker */}
+          {/* Progress Bar Display */}
           {uploading && (
             <div className="bg-[#0B132B] border border-slate-800 p-4 rounded-2xl space-y-2">
               <div className="flex justify-between text-xs font-mono">
@@ -576,11 +577,11 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
             </div>
           )}
 
-          {/* Action Footer */}
+          {/* Buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => setCurrentPage('marketplace')}
+              onClick={() => setCurrentPage && setCurrentPage('marketplace')}
               disabled={uploading}
               className="bg-transparent text-slate-400 hover:text-white font-bold text-xs uppercase tracking-wider px-5 py-3.5 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -601,14 +602,12 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
               )}
             </button>
           </div>
-
         </form>
       </div>
     </div>
   );
 }
 
-// Sub-component for Supplementary Media Uploads
 function FileUploadField({ label, accept, maxMb, file, onSelect }) {
   return (
     <div className="bg-[#0B132B] border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-2">

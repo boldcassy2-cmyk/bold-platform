@@ -1,20 +1,18 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCsnngd0Z1b3TY6EGjjNbiPkM_2cFBj5RU",
-  authDomain: "bold-ng-platform.firebaseapp.com",
-  projectId: "bold-ng-platform",
-  storageBucket: "bold-ng-platform.firebasestorage.app",
-  messagingSenderId: "648684583976",
-  appId: "1:648684583976:web:ad48791e2088c35656c91d"
+  apiKey: "AIzaSyCZTJ9K0c9CKshUoOXYRDAupR2w9yb8Lq4",
+  authDomain: "bold-ng-platform-e77d1.firebaseapp.com",
+  projectId: "bold-ng-platform-e77d1",
+  storageBucket: "bold-ng-platform-e77d1.firebasestorage.app",
+  messagingSenderId: "308013797746",
+  appId: "1:308013797746:web:b0f88e394e047030eb0deb"
 };
 
-// Initialize Firebase App instance
 const app = initializeApp(firebaseConfig);
-
-// Export Authentication and Firestore database services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export default app;
+export const storage = getStorage(app);
