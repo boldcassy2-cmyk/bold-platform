@@ -35,7 +35,7 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
     }
   };
 
-  // Hardened Cloudinary Direct Upload Handler with Debug Logging
+  // Bulletproof Cloudinary Direct Upload Handler with 12s Timeout Protection
   const uploadToCloudinary = async (file) => {
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'Bold_ng_page';
@@ -54,11 +54,20 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
     console.log("🚀 [Cloudinary Debug] Sending POST request to:", uploadUrl);
 
+    // Create an AbortController to force-fail if network hangs for more than 12 seconds
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
+      setUploadStatus('Connecting to Cloudinary CDN...');
       const response = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+      setUploadStatus('Processing secure asset...');
 
       const data = await response.json();
       console.log("📥 [Cloudinary Debug] Response received:", data);
@@ -69,7 +78,13 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
         throw new Error(data.error?.message || "Cloudinary rejected the upload.");
       }
     } catch (netError) {
+      clearTimeout(timeoutId);
       console.error("❌ [Cloudinary Network Error]:", netError);
+
+      if (netError.name === 'AbortError') {
+        throw new Error("Upload timed out after 12s. Your browser adblocker, Brave Shields, or firewall is blocking Cloudinary. Please turn off adblockers for localhost or paste a direct image URL below.");
+      }
+
       throw new Error(`Image upload failed: ${netError.message}. Check your internet connection or adblocker.`);
     }
   };

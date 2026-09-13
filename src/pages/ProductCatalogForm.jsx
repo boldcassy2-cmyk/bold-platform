@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db, storage } from "../firebase";
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // Marketplace Category Taxonomy Definition
 const CATEGORY_DATA = {
@@ -49,6 +47,10 @@ const CATEGORY_DATA = {
 const MAX_IMAGE_SIZE_MB = 5;
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_PDF_SIZE_MB = 10;
+
+// Cloudinary Configuration Credentials
+const CLOUD_NAME = "rylkihnc";
+const UPLOAD_PRESET = "Bold_ng_page";
 
 // Safe Image Optimizer Pipeline
 const compressImage = (file) => {
@@ -192,47 +194,35 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     setMedia((prev) => ({ ...prev, [key]: file }));
   };
 
-  const executeFileUpload = useCallback((file, folderPath, label, startWeight, weightShare) => {
-    return new Promise((resolve, reject) => {
-      if (!file) return resolve('');
+  // Direct Cloudinary Upload Function
+  const uploadToCloudinary = useCallback(async (file, resourceType = 'auto', label) => {
+    if (!file) return '';
 
-      setStatusText(`Uploading ${label}...`);
-      setUploadProgress(startWeight + 5);
+    setStatusText(`Uploading ${label} to Cloudinary...`);
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", UPLOAD_PRESET);
+    data.append("folder", "bold_store");
 
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-      const uniqueFileName = `${Date.now()}_${sanitizedName}`;
-      const storageRef = ref(storage, `${folderPath}/${uniqueFileName}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const totalBytes = snapshot.totalBytes || 1;
-          const filePercent = snapshot.bytesTransferred / totalBytes;
-          const currentTotalProgress = Math.min(
-            95,
-            Math.round(startWeight + filePercent * weightShare)
-          );
-          setUploadProgress(currentTotalProgress);
-        },
-        (error) => {
-          console.error(`Upload error on ${label}:`, error);
-          reject(error);
-        },
-        async () => {
-          try {
-            setStatusText(`Processing ${label}...`);
-            const targetCompletedProgress = Math.min(95, startWeight + weightShare);
-            setUploadProgress(targetCompletedProgress);
-
-            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadUrl);
-          } catch (err) {
-            reject(err);
-          }
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
+        {
+          method: "POST",
+          body: data,
         }
       );
-    });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.message || `Failed to upload ${label}`);
+      }
+
+      return result.secure_url;
+    } catch (err) {
+      console.error(`Cloudinary error on ${label}:`, err);
+      throw new Error(`Upload failed for ${label}: ${err.message}`);
+    }
   }, []);
 
   const handleFormSubmit = async (e) => {
@@ -251,22 +241,24 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
 
     try {
       setUploading(true);
-      setUploadProgress(10);
+      setUploadProgress(15);
       setStatusText('Optimizing image compression...');
 
       const compressedImage = await compressImage(media.image);
       
-      setUploadProgress(20);
-      const imageUrl = await executeFileUpload(compressedImage, 'products/images', 'Product Image', 20, 50);
+      setUploadProgress(35);
+      const imageUrl = await uploadToCloudinary(compressedImage, 'image', 'Product Image');
 
       let videoUrl = '';
       if (media.video) {
-        videoUrl = await executeFileUpload(media.video, 'products/videos', 'Product Video', 70, 15);
+        setUploadProgress(65);
+        videoUrl = await uploadToCloudinary(media.video, 'video', 'Product Video');
       }
 
       let pdfUrl = '';
       if (media.pdf) {
-        pdfUrl = await executeFileUpload(media.pdf, 'products/documents', 'Verification Document', 85, 10);
+        setUploadProgress(85);
+        pdfUrl = await uploadToCloudinary(media.pdf, 'raw', 'Verification Document');
       }
 
       setStatusText('Saving catalog entry to database...');
@@ -295,18 +287,17 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
       }
       
       setUploadProgress(100);
-      setStatusText('Upload Complete!');
+      setStatusText('Upload Successful!');
       
       setTimeout(() => {
         if (typeof setCurrentPage === 'function') {
           setCurrentPage('marketplace');
         }
-      }, 400);
+      }, 500);
 
     } catch (err) {
       console.error('Submission failed:', err);
       setErrorMessage(`Upload failed: ${err.message || 'Please check network and try again.'}`);
-    } finally {
       setUploading(false);
       setUploadProgress(0);
       setStatusText('');
@@ -319,7 +310,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         <div className="mb-8 border-b border-slate-800 pb-5 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5A00] bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20">
-              Seller Portal
+              Seller Portal (Cloudinary Powered)
             </span>
             <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white mt-2">
               Add New Product or Service Listing
@@ -595,7 +586,7 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
               {uploading ? (
                 <>
                   <span className="animate-spin text-sm">⏳</span>
-                  <span>Publishing Product...</span>
+                  <span>{statusText || 'Publishing Product...'}</span>
                 </>
               ) : (
                 <span>🚀 Submit & Publish Listing</span>
