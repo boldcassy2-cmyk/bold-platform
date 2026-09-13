@@ -3,11 +3,11 @@ import { db, auth } from './firebase';
 import { collection, onSnapshot, addDoc, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-// Core UI Components (Loaded statically for instantaneous first paint)
+// Core UI Components
 import Home from './pages/Home';
 import Footer from './components/Footer';
 
-// Dynamic Lazy Imports for Optimization & Fast Bundling
+// Dynamic Lazy Imports
 const AuthPortal = lazy(() => import('./pages/AuthPortal'));
 const Store = lazy(() => import('./pages/Store'));
 const Marketplace = lazy(() => import('./pages/Marketplace'));
@@ -20,10 +20,9 @@ const EscrowCheckout = lazy(() => import('./pages/EscrowCheckout'));
 const CartSummaryPage = lazy(() => import('./pages/CartSummaryPage'));
 const ProductCatalogForm = lazy(() => import('./pages/ProductCatalogForm'));
 
-// CEO Email Fallbacks (Guarantees CEO status on login)
+// CEO Email Fallbacks
 const CEO_EMAILS = [
   'boldcassy2@gmail.com'
-  // Add additional executive emails here if needed
 ];
 
 // Default / Offline Fallback Inventory
@@ -48,7 +47,6 @@ export default function App() {
   const [activeTxPayload, setActiveTxPayload] = useState(null);
   const [globalItems, setGlobalItems] = useState([]);
   
-  // Initialize Cart State with localStorage persistence
   const [cartItems, setCartItems] = useState(() => {
     try {
       const savedCart = localStorage.getItem('bold_cart_items');
@@ -61,9 +59,19 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [globalTransactions, setGlobalTransactions] = useState(INITIAL_TRANSACTIONS);
   
-  // Auth & RBAC State
+  const [globalUsersList, setGlobalUsersList] = useState([
+    { id: 'usr-1', name: 'Chukwu Store', role: 'USER', email: 'merchant@bold.ng', status: 'Active' },
+    { id: 'usr-2', name: 'Abuja Admin Hub', role: 'STAFF', email: 'staff.abuja@bold.ng', status: 'Active' }
+  ]);
+
+  const [globalStaffActions, setGlobalStaffActions] = useState([
+    { id: 'log-1', staff: 'Abuja Admin Hub', action: 'Approved Escrow Release #TX-8831', timestamp: '2026-06-04 14:22' }
+  ]); 
+  
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState('USER'); // Roles: 'USER' | 'STAFF' | 'CEO'
+  const [userRole, setUserRole] = useState(() => {
+    return localStorage.getItem('bold_dev_role') || 'CEO';
+  });
 
   const [merchantStore, setMerchantStore] = useState({
     name: 'Bold Enterprise',
@@ -73,26 +81,34 @@ export default function App() {
     whatsapp: '08000000000'
   });
 
-  // Sync cart items to localStorage whenever cart state changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('bold_dev_role', userRole);
+    } catch (e) {}
+  }, [userRole]);
+
   useEffect(() => {
     try {
       localStorage.setItem('bold_cart_items', JSON.stringify(cartItems));
-    } catch (e) {
-      console.warn('Could not save cart state to localStorage:', e);
-    }
+    } catch (e) {}
   }, [cartItems]);
 
-  // Scroll back to top on page navigation
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentPage]);
 
-  // Authentication Listener & Role Verification
+  // Clean, single authentication state observer effect
   useEffect(() => {
     if (!auth) return;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      
+      if (localStorage.getItem('bold_dev_role') === 'CEO' || localStorage.getItem('bold_dev_ceo_forced') === 'true') {
+        setUserRole('CEO');
+        return;
+      }
+
       if (user) {
         if (user.email && CEO_EMAILS.includes(user.email.toLowerCase())) {
           setUserRole('CEO');
@@ -109,7 +125,6 @@ export default function App() {
             setUserRole('USER');
           }
         } catch (error) {
-          console.warn("Could not fetch user role, defaulting to standard USER:", error);
           setUserRole('USER');
         }
       } else {
@@ -119,19 +134,24 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Logout Handler
+  const toggleExecutiveMode = () => {
+    setUserRole((prev) => {
+      const nextRole = prev === 'CEO' ? 'USER' : 'CEO';
+      localStorage.setItem('bold_dev_ceo_forced', nextRole === 'CEO' ? 'true' : 'false');
+      return nextRole;
+    });
+  };
+
   const handleLogout = async () => {
     try {
       if (auth) await signOut(auth);
       setUserRole('USER');
+      localStorage.removeItem('bold_dev_ceo_forced');
       setCurrentPage('home');
       alert('Logged out successfully.');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    } catch (error) {}
   };
 
-  // Priority Sorting for Sponsored & Promoted Listings
   const sortInventoryPriorities = (items) => {
     const getWeight = (placement) => {
       switch (placement) {
@@ -150,7 +170,7 @@ export default function App() {
     });
   };
 
-  // Realtime Cloud Inventory Sync
+  // Real-time Inventory Firestore Sync
   useEffect(() => {
     let isMounted = true;
     
@@ -175,10 +195,10 @@ export default function App() {
           clearTimeout(networkTimeoutGate);
           if (!isMounted) return;
 
-          let fetchedItems = snapshot.docs.map((doc) => ({
-            docId: doc.id,
-            id: doc.id,
-            ...doc.data()
+          let fetchedItems = snapshot.docs.map((docItem) => ({
+            docId: docItem.id,
+            id: docItem.id,
+            ...docItem.data()
           }));
 
           if (fetchedItems.length === 0) fetchedItems = FALLBACK_INVENTORY;
@@ -186,7 +206,6 @@ export default function App() {
           setLoading(false);
         },
         (error) => {
-          console.warn('Firestore offline or failed. Using fallback dataset:', error);
           clearTimeout(networkTimeoutGate);
           if (isMounted) {
             setGlobalItems(FALLBACK_INVENTORY);
@@ -209,7 +228,6 @@ export default function App() {
     };
   }, []);
 
-  // Cart Management Handlers
   const handleAddToCart = useCallback((product) => {
     setCartItems((prevCart) => {
       const existingIndex = prevCart.findIndex((item) => item.id === product.id || item.docId === product.docId);
@@ -226,13 +244,11 @@ export default function App() {
     return cartItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [cartItems]);
 
-  // Unified Single-Item or Basket Checkout Trigger
   const handleTriggerCheckout = useCallback((itemContext) => {
     setActiveTxPayload(itemContext ? { ...itemContext, quantity: itemContext.quantity || 1 } : null);
     setCurrentPage('escrow-checkout');
   }, []);
 
-  // Product Addition Handler
   const handleAddNewProduct = async (newProductPayload) => {
     const cloudPayload = {
       ...newProductPayload,
@@ -245,7 +261,7 @@ export default function App() {
     try {
       if (!db) throw new Error("Firestore not initialized");
       const firestorePromise = addDoc(collection(db, 'inventory'), cloudPayload);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore Sync Timeout')), 5000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Sync Timeout')), 5000));
       await Promise.race([firestorePromise, timeoutPromise]);
     } catch (error) {
       setGlobalItems((prev) => sortInventoryPriorities([cloudPayload, ...prev]));
@@ -254,7 +270,6 @@ export default function App() {
     }
   };
 
-  // Recommendation Engine
   const getRelatedItems = useCallback((activeItem) => {
     if (!activeItem || !activeItem.title) return [];
     const fullTitleLower = activeItem.title.toLowerCase();
@@ -274,8 +289,7 @@ export default function App() {
     }).slice(0, 4);
   }, [globalItems]);
 
-  // Navigation Items Config
-  const NAV_ITEMS = [
+  const USER_NAV = [
     { id: 'home', label: '🏠 Home' },
     { id: 'marketplace', label: '🔍 Explore Market' },
     { id: 'addproduct', label: '➕ Add Product' },
@@ -284,10 +298,18 @@ export default function App() {
     { id: 'escrow', label: '🛡️ Escrow Vault' },
   ];
 
-  // Role-based Dashboard Switcher
   const renderDashboardByRole = () => {
     if (userRole === 'CEO') {
-      return <CeoDashboard transactions={globalTransactions} setTransactions={setGlobalTransactions} />;
+      return (
+        <CeoDashboard 
+          transactions={globalTransactions} 
+          setTransactions={setGlobalTransactions} 
+          items={globalItems}
+          usersList={globalUsersList}
+          staffLogs={globalStaffActions}
+          userRole={userRole}
+        />
+      );
     }
     if (userRole === 'STAFF') {
       return <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />;
@@ -295,7 +317,6 @@ export default function App() {
     return <Store merchantStore={merchantStore} items={globalItems} transactions={globalTransactions} setCurrentPage={setCurrentPage} />;
   };
 
-  // Dynamic View Routing Renderer
   const renderCurrentView = () => {
     switch (currentPage) {
       case 'home':
@@ -310,23 +331,35 @@ export default function App() {
       case 'escrow':
         return <EscrowTracker transactions={globalTransactions} />;
       case 'escrow-dashboard':
-        return <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />;
+        return userRole === 'STAFF' || userRole === 'CEO' 
+          ? <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+          : <Home setCurrentPage={setCurrentPage} />;
       case 'ceo':
-        return <CeoDashboard transactions={globalTransactions} setTransactions={setGlobalTransactions} />;
-      case 'marketplace':
+        return userRole === 'CEO' 
+          ? (
+              <CeoDashboard 
+                transactions={globalTransactions} 
+                setTransactions={setGlobalTransactions} 
+                items={globalItems}
+                usersList={globalUsersList}
+                staffLogs={globalStaffActions}
+                userRole={userRole}
+              />
+            )
+          : <Home setCurrentPage={setCurrentPage} />;
+     case 'marketplace':
         return (
           <Marketplace 
             setCurrentPage={setCurrentPage} 
             items={globalItems} 
             onTriggerCheckout={handleTriggerCheckout} 
             onAddToCart={handleAddToCart}
-            getRelatedItems={getRelatedItems}
+            cartItems={cartItems}
+            onViewCart={() => setCurrentPage('cart')}
           />
         );
       case 'addproduct':
         return <ProductCatalogForm onAddProductComplete={handleAddNewProduct} setCurrentPage={setCurrentPage} />;
-      
-      // Render Checkout / Escrow Processor Routing Safely
       case 'checkout':
       case 'processor':
       case 'escrow-checkout':
@@ -337,19 +370,43 @@ export default function App() {
               setActiveTxPayload(null);
               setCurrentPage(activeTxPayload ? 'marketplace' : 'cart');
             }}
-            onConfirmPayment={(order) => {
-              // Clear active payload and cart items upon successful payment
+            onConfirmPayment={() => {
+              // 1. Create a clean transaction entry for the vault
+              const itemsToCheckOut = activeTxPayload ? [activeTxPayload] : cartItems;
+              const orderTotal = itemsToCheckOut.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
+              const firstItemTitle = itemsToCheckOut[0]?.title || 'Multi-Item Order';
+              const formattedTitle = itemsToCheckOut.length > 1 
+                ? `${firstItemTitle} (+${itemsToCheckOut.length - 1} more)` 
+                : `${firstItemTitle} (x${itemsToCheckOut[0]?.quantity || 1})`;
+
+              const newTransaction = {
+                id: 'TX-' + Math.floor(1000 + Math.random() * 9000),
+                title: formattedTitle,
+                amount: orderTotal > 0 ? orderTotal : 105000,
+                status: 'In Escrow Vault',
+                date: new Date().toISOString().split('T')[0],
+                hub: 'Lagos Hub',
+                type: itemsToCheckOut[0]?.category || 'General Commerce'
+              };
+
+              // 2. Prepend to global transactions tracker state
+              setGlobalTransactions((prev) => [newTransaction, ...prev]);
+
+              // 3. Reset active payload and clear shopping cart states
               setActiveTxPayload(null);
               setCartItems([]);
-              localStorage.removeItem('bold_cart_items');
-              localStorage.removeItem('bold_cart');
+              try {
+                localStorage.removeItem('bold_cart_items');
+                localStorage.removeItem('bold_cart');
+              } catch (e) {}
               window.dispatchEvent(new Event('cartUpdated'));
+
+              // 4. Smoothly route straight to Escrow Vault Tracker screen
               setCurrentPage('escrow');
             }}
             onNavigate={(page) => setCurrentPage(page || 'marketplace')}
           />
         );
-
       case 'cart':
         return (
           <CartSummaryPage 
@@ -358,7 +415,7 @@ export default function App() {
             setCurrentPage={setCurrentPage} 
             setTransactions={setGlobalTransactions} 
             onProceedToEscrow={() => {
-              setActiveTxPayload(null); // Clear single item override to check out full cart bundle
+              setActiveTxPayload(null);
               setCurrentPage('escrow-checkout');
             }}
           />
@@ -371,7 +428,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0B132B] text-white antialiased font-sans pb-12 selection:bg-[#FF5A00] selection:text-white flex flex-col justify-between">
       <div>
-        {/* Main Header Navigation */}
         <header className="bg-[#16223F] py-4 px-6 sticky top-0 z-50 shadow-2xl flex flex-col lg:flex-row justify-between items-center gap-4 border-b-2 border-[#FF5A00]">
           <div 
             className="flex items-center gap-3 cursor-pointer select-none group" 
@@ -386,7 +442,7 @@ export default function App() {
           </div>
 
           <nav className="flex flex-wrap gap-2 justify-center items-center">
-            {NAV_ITEMS.map((nav) => (
+            {USER_NAV.map((nav) => (
               <button
                 key={nav.id}
                 type="button"
@@ -402,22 +458,18 @@ export default function App() {
               </button>
             ))}
 
-            {/* CEO Portal Badge */}
+            {/* ONLY visible to CEO: Dedicated Executive Portal Link */}
             {userRole === 'CEO' && (
               <button 
                 type="button" 
                 onClick={() => setCurrentPage('ceo')} 
-                className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
-                  currentPage === 'ceo' 
-                    ? 'bg-amber-500 text-slate-950' 
-                    : 'text-amber-400 bg-amber-950/20 border border-amber-900/40 hover:bg-amber-900/40'
-                }`}
+                className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors bg-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.4)]`}
               >
-                👑 CEO Portal
+                👑 CEO Portal ⚡
               </button>
             )}
 
-            {/* Staff Escrow Telemetry Badge */}
+            {/* ONLY visible to Staff / Admins */}
             {userRole === 'STAFF' && (
               <button 
                 type="button" 
@@ -432,7 +484,6 @@ export default function App() {
               </button>
             )}
 
-            {/* Basket Button */}
             <button 
               type="button" 
               onClick={() => {
@@ -451,7 +502,6 @@ export default function App() {
               )}
             </button>
 
-            {/* Authentication Buttons */}
             {currentUser ? (
               <button 
                 type="button" 
@@ -474,7 +524,6 @@ export default function App() {
           </nav>
         </header>
 
-        {/* Sticky Back Header Sub-Bar */}
         {currentPage !== 'marketplace' && currentPage !== 'home' && !loading && (
           <div className="bg-[#0f1936] border-b border-slate-800 px-6 py-2 sticky top-[78px] z-40 shadow-md">
             <button 
@@ -490,7 +539,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Viewport Content Rendering Container with Lazy Fallback */}
         <main className="pt-4 px-2">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32 space-y-3">

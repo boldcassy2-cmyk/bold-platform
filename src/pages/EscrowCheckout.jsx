@@ -1,402 +1,426 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState } from 'react';
 
-/**
- * BOLD.NG SECURE CHECKOUT & PAYMENT GATEWAY
- * File: src/components/EscrowCheckout.jsx
- */
 export default function EscrowCheckout({ 
-  item, 
   cartItems = [], 
-  onCancel = () => {}, 
-  onConfirmPayment = () => {}, 
-  onNavigate = () => {} 
+  onCancel, 
+  onConfirmPayment,
+  onNavigate 
 }) {
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('card');
+  const [step, setStep] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState('transfer');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState(null);
 
-  // Safe Cart Items reference
-  const safeCartItems = useMemo(() => {
-    if (Array.isArray(cartItems) && cartItems.length > 0) return cartItems;
-    if (item && typeof item === 'object') return [item];
-    
-    // Check local storage fallback if state was cleared prematurely
-    try {
-      const stored = localStorage.getItem('bold_cart');
-      const parsed = stored ? JSON.parse(stored) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }, [cartItems, item]);
-
-  // Delivery Details with persistent fallback
-  const [shippingDetails, setShippingDetails] = useState(() => {
-    try {
-      const saved = localStorage.getItem('bold_shipping_info');
-      return saved ? JSON.parse(saved) : { fullName: '', phone: '', address: '', state: 'Lagos' };
-    } catch {
-      return { fullName: '', phone: '', address: '', state: 'Lagos' };
-    }
+  // Delivery State
+  const [deliveryInfo, setDeliveryInfo] = useState({
+    fullName: '',
+    phone: '',
+    address: '',
+    hub: 'Lagos Hub (Ikeja / Lekki Inspection Center)'
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('bold_shipping_info', JSON.stringify(shippingDetails));
-    } catch (e) {
-      console.warn('Could not save shipping details to localStorage', e);
-    }
-  }, [shippingDetails]);
+  // Bank Transfer Proof State
+  const [paymentProof, setPaymentProof] = useState({
+    senderBank: '',
+    senderAccountName: '',
+    transactionReference: ''
+  });
 
-  // Financial Calculations
-  const financialSummary = useMemo(() => {
-    if (safeCartItems.length === 0) {
-      return { itemSubtotal: 0, inspectionFee: 0, escrowProcessingFee: 0, totalPayout: 0, isPremium: false };
-    }
+  // Robust Price & Quantity Parsers (Handles strings with commas, ₦ symbols, and alternative keys)
+  const parsePrice = (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const cleanStr = String(val).replace(/[₦$,\s]/g, '');
+    const parsed = parseFloat(cleanStr);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
-    const itemSubtotal = safeCartItems.reduce((sum, i) => {
-      const price = Number(i?.price) || 0;
-      const qty = Number(i?.quantity) || 1;
-      return sum + (price * qty);
-    }, 0);
+  const parseQty = (val) => {
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  };
 
-    const inspectionFee = 2500;
-    const isPremium = itemSubtotal >= 1000000;
-    const escrowFeeRate = isPremium ? 0.01 : 0.015;
-    const escrowProcessingFee = Math.round(itemSubtotal * escrowFeeRate);
-    const totalPayout = itemSubtotal + inspectionFee + escrowProcessingFee;
+  // Safe Cart Items Normalization (Handles arrays, single items, or wrapped objects like { items: [...] })
+  let rawItems = cartItems;
+  if (cartItems && !Array.isArray(cartItems)) {
+    if (Array.isArray(cartItems.items)) rawItems = cartItems.items;
+    else if (Array.isArray(cartItems.cart)) rawItems = cartItems.cart;
+    else rawItems = [cartItems];
+  }
+  const safeCartItems = Array.isArray(rawItems) ? rawItems.filter(Boolean) : [rawItems].filter(Boolean);
+  
+  const itemsSubtotal = safeCartItems.reduce(
+    (acc, item) => {
+      const p = parsePrice(item?.price ?? item?.amount ?? item?.cost ?? item?.unitPrice ?? 0);
+      const q = parseQty(item?.quantity ?? item?.qty ?? 1);
+      return acc + (p * q);
+    },
+    0
+  );
 
-    return { itemSubtotal, inspectionFee, escrowProcessingFee, totalPayout, isPremium };
-  }, [safeCartItems]);
+  const escrowFee = itemsSubtotal > 0 ? Math.round(itemsSubtotal * 0.015) : 0; 
+  const deliveryFee = itemsSubtotal > 0 ? 3500 : 0; 
+  const grandTotal = itemsSubtotal + escrowFee + deliveryFee;
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setShippingDetails(prev => ({ ...prev, [name]: value }));
+    setDeliveryInfo((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handlePaymentExecution = () => {
-    if (!shippingDetails.fullName || !shippingDetails.phone || !shippingDetails.address) {
-      alert('Please complete your delivery details before proceeding.');
+  const handleProofChange = (e) => {
+    const { name, value } = e.target;
+    setPaymentProof((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProceedToPayment = (e) => {
+    e.preventDefault();
+    if (!deliveryInfo.fullName || !deliveryInfo.phone || !deliveryInfo.address) {
+      alert('Please fill in all delivery details to proceed.');
+      return;
+    }
+    setStep(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFinalPaymentSubmit = () => {
+    if (grandTotal <= 0) {
+      alert('Error: Cart is empty or item price is invalid.');
+      return;
+    }
+
+    if (paymentMethod === 'transfer' && !paymentProof.transactionReference) {
+      alert('Please enter your Bank Transfer Reference or Teller Number as proof of payment.');
       return;
     }
 
     setIsProcessing(true);
-
     setTimeout(() => {
       setIsProcessing(false);
-      
-      const orderId = `BOLD-TX-${Math.floor(100000 + Math.random() * 900000)}`;
-      const newOrder = {
-        orderId,
-        items: safeCartItems,
-        total: financialSummary.totalPayout,
-        paymentMethod: selectedPaymentMethod,
-        shipping: shippingDetails,
-        date: new Date().toISOString(),
-        status: 'Escrow Vault Locked'
-      };
-      
-      try {
-        const recentOrders = JSON.parse(localStorage.getItem('bold_order_history') || '[]');
-        localStorage.setItem('bold_order_history', JSON.stringify([newOrder, ...recentOrders]));
-        localStorage.removeItem('bold_cart');
-      } catch (e) {
-        console.error('Error handling local storage order save:', e);
-      }
-
-      window.dispatchEvent(new Event('cartUpdated'));
-      setCompletedOrder(newOrder);
-
-      if (typeof onConfirmPayment === 'function') {
-        onConfirmPayment(newOrder);
-      }
-    }, 1800);
+      onConfirmPayment();
+    }, 2000);
   };
 
-  // SUCCESS / TRANSACTION CONFIRMED VIEW
-  if (completedOrder) {
+  // Guard clause if cart is completely empty or subtotal is 0
+  if (safeCartItems.length === 0 || itemsSubtotal <= 0) {
     return (
-      <div className="max-w-xl mx-auto my-10 p-8 bg-[#16223F] border border-emerald-500/30 rounded-3xl text-white shadow-2xl text-center space-y-6">
-        <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full flex items-center justify-center text-3xl mx-auto">
-          🛡️
-        </div>
-
-        <div>
-          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
-            Payment Locked in Escrow Vault
-          </span>
-          <h2 className="text-2xl font-black text-white mt-3">Transaction Confirmed</h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Order Reference: <span className="font-mono text-white font-bold">{completedOrder.orderId}</span>
-          </p>
-        </div>
-
-        <div className="bg-[#0B132B] border border-slate-800 rounded-2xl p-4 text-left space-y-2 text-xs font-mono">
-          <div className="flex justify-between text-slate-400">
-            <span>Amount Locked:</span>
-            <span className="text-white font-bold">₦{(completedOrder?.total || 0).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-slate-400">
-            <span>Payment Method:</span>
-            <span className="text-white font-bold uppercase">{completedOrder?.paymentMethod}</span>
-          </div>
-          <div className="flex justify-between text-slate-400">
-            <span>Destination:</span>
-            <span className="text-white font-bold truncate max-w-[200px]">{completedOrder?.shipping?.address}</span>
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-300 leading-relaxed bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
-          Your payment is held safely in the <strong>Bold Escrow Vault</strong>. Vendor dispatch has been triggered. Funds will only be released once you physically inspect and confirm delivery.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => typeof onNavigate === 'function' ? onNavigate('escrow-vault') : onCancel()}
-            className="flex-1 py-3.5 bg-[#FF5A00] text-white font-bold text-xs rounded-xl hover:bg-[#e04f00] transition-all border-none cursor-pointer uppercase tracking-wider"
-          >
-            Go to Escrow Vault
-          </button>
-          <button
-            type="button"
-            onClick={() => typeof onNavigate === 'function' ? onNavigate('marketplace') : onCancel()}
-            className="flex-1 py-3.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:text-white hover:bg-slate-700 transition-all border-none cursor-pointer uppercase tracking-wider"
-          >
-            Continue Shopping
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // EMPTY CHECKOUT BASKET VIEW
-  if (safeCartItems.length === 0) {
-    return (
-      <div className="max-w-md mx-auto my-12 p-8 bg-[#16223F] border border-slate-800 rounded-3xl text-center text-white shadow-2xl space-y-4">
-        <div className="w-14 h-14 mx-auto bg-[#0B132B] rounded-full flex items-center justify-center text-2xl">
-          🛒
-        </div>
-        <p className="text-slate-400 text-sm font-medium">Your checkout basket is empty.</p>
-        <button 
-          type="button"
-          onClick={onCancel} 
-          className="bg-[#FF5A00] hover:bg-[#e04f00] text-white text-xs font-bold px-6 py-3 rounded-xl uppercase tracking-wider border-none cursor-pointer transition-all"
-        >
-          Return to Catalog
-        </button>
-      </div>
-    );
-  }
-
-  const { itemSubtotal, inspectionFee, escrowProcessingFee, totalPayout, isPremium } = financialSummary;
-
-  return (
-    <div className="max-w-4xl mx-auto my-6 px-4 text-white font-sans selection:bg-[#FF5A00]">
-      
-      {/* Header Navigation */}
-      <header className="flex items-center justify-between mb-6">
-        <button 
+      <div className="max-w-md mx-auto mt-20 p-8 bg-[#16223F] rounded-2xl border border-slate-800 text-center space-y-4">
+        <div className="text-4xl">🛒</div>
+        <h2 className="text-lg font-bold text-white">Your Cart is Empty or Price Missing</h2>
+        <p className="text-xs text-slate-400">Please select an item with a valid price or add products to your cart before proceeding to the Secure Escrow Checkout.</p>
+        <button
           type="button"
           onClick={onCancel}
-          className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer"
+          className="w-full bg-[#FF5A00] text-white text-xs font-black uppercase py-3 rounded-xl cursor-pointer border-none"
         >
-          ← Cancel & Return
+          Return to Marketplace
         </button>
-        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
-          🔒 Secure Escrow Checkout
-        </span>
-      </header>
+      </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Delivery & Payment Options */}
-        <main className="lg:col-span-7 space-y-6">
-          
-          {/* Section 1: Customer Delivery Details */}
-          <section className="bg-[#16223F] border border-slate-800 rounded-2xl p-5 text-left space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                <span>1.</span> Delivery Information
-              </h3>
-              <span className="text-[10px] text-slate-500">Auto-Saved</span>
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 font-sans pb-32">
+      
+      {/* Header Banner */}
+      <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 shadow-xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="bg-[#FF5A00] text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md tracking-wider">
+              🛡️ Secure Escrow Vault
+            </span>
+            <span className="text-xs font-mono text-slate-400">Ref: #BOLD-{Math.floor(100000 + Math.random() * 900000)}</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-white mt-1">
+            {step === 1 ? 'Step 1: Delivery & Inspection Hub' : 'Step 2: Secure Escrow Payment & Verification'}
+          </h1>
+        </div>
+
+        {/* Step Indicator & Exit */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${step === 1 ? 'bg-[#FF5A00] text-white shadow-[0_0_10px_rgba(255,90,0,0.4)]' : 'bg-slate-800 text-slate-400'}`}>
+              1
             </div>
+            <div className="w-8 h-1 bg-slate-800">
+              <div className={`h-full bg-[#FF5A00] transition-all ${step === 2 ? 'w-full' : 'w-0'}`}></div>
+            </div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${step === 2 ? 'bg-[#FF5A00] text-white shadow-[0_0_10px_rgba(255,90,0,0.4)]' : 'bg-slate-800 text-slate-400'}`}>
+              2
+            </div>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-red-300 text-xs font-bold px-3 py-2 rounded-xl transition-colors cursor-pointer"
+          >
+            ✕ Exit Checkout
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Main Form Section */}
+        <div className="lg:col-span-2 space-y-6">
+          {step === 1 ? (
+            <form onSubmit={handleProceedToPayment} className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+              <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3">
+                📦 Buyer Delivery & Hub Inspection Information
+              </h3>
+
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wide">Full Name</label>
                 <input
                   type="text"
                   name="fullName"
-                  placeholder="e.g. Chukwuebuka Dedon"
-                  value={shippingDetails.fullName}
+                  required
+                  placeholder="e.g., Chukwuemeka Ebigbo"
+                  value={deliveryInfo.fullName}
                   onChange={handleInputChange}
-                  className="w-full bg-[#0B132B] border border-slate-700/80 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF5A00]"
+                  className="w-full bg-[#0B132B] text-white px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-[#FF5A00] text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Phone Number</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wide">Phone Number</label>
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="08012345678"
-                  value={shippingDetails.phone}
+                  required
+                  placeholder="e.g., 08012345678"
+                  value={deliveryInfo.phone}
                   onChange={handleInputChange}
-                  className="w-full bg-[#0B132B] border border-slate-700/80 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF5A00]"
+                  className="w-full bg-[#0B132B] text-white px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-[#FF5A00] text-sm"
                 />
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-slate-400 font-semibold mb-1">Delivery Address or Hub</label>
-                <input
-                  type="text"
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wide">Delivery Address or Landmark</label>
+                <textarea
                   name="address"
-                  placeholder="Street Address, Building Name, or Destination Hub"
-                  value={shippingDetails.address}
+                  required
+                  rows="3"
+                  placeholder="Enter your street address or landmark..."
+                  value={deliveryInfo.address}
                   onChange={handleInputChange}
-                  className="w-full bg-[#0B132B] border border-slate-700/80 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#FF5A00]"
+                  className="w-full bg-[#0B132B] text-white px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-[#FF5A00] text-sm resize-none"
                 />
               </div>
-            </div>
-          </section>
 
-          {/* Section 2: Payment Method Selection */}
-          <section className="bg-[#16223F] border border-slate-800 rounded-2xl p-5 text-left space-y-4 shadow-lg">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 border-b border-slate-800/80 pb-3">
-              2. Select Payment Method
-            </h3>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wide">Select Inspection Hub</label>
+                <select
+                  name="hub"
+                  value={deliveryInfo.hub}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0B132B] text-white px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-[#FF5A00] text-sm cursor-pointer"
+                >
+                  <option value="Lagos Hub">Lagos Hub (Ikeja / Lekki Inspection Center)</option>
+                  <option value="Abuja Hub">Abuja Hub (Wuse II Verification Center)</option>
+                  <option value="Port Harcourt Hub">Port Harcourt Hub (GRA Logistics Node)</option>
+                </select>
+              </div>
 
-            <div className="space-y-2.5">
-              {[
-                { id: 'card', label: 'Debit / Credit Card', sub: 'Paystack, Visa, Mastercard, Verve', icon: '💳' },
-                { id: 'transfer', label: 'Instant Bank Transfer', sub: 'Virtual Bank Account Payment', icon: '🏦' },
-                { id: 'ussd', label: 'USSD Code', sub: 'Quick dial code via phone', icon: '📱' },
-              ].map((method) => (
-                <label
-                  key={method.id}
-                  onClick={() => setSelectedPaymentMethod(method.id)}
-                  className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    selectedPaymentMethod === method.id
-                      ? 'bg-[#0B132B] border-[#FF5A00] shadow-[0_0_10px_rgba(255,90,0,0.15)]'
-                      : 'bg-[#16223F] border-slate-800 hover:border-slate-700'
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-5 py-3 rounded-xl transition-colors cursor-pointer border-none"
+                >
+                  ← Return to Cart
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#FF5A00] hover:bg-[#e04f00] text-white text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-lg shadow-[#FF5A00]/30 cursor-pointer border-none"
+                >
+                  Proceed to Payment →
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-base font-bold text-white">💳 Select Payment & Escrow Method</h3>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  ← Edit Delivery Info
+                </button>
+              </div>
+
+              {/* Payment Tabs */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('transfer')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    paymentMethod === 'transfer'
+                      ? 'bg-[#0B132B] border-[#FF5A00] shadow-[0_0_15px_rgba(255,90,0,0.2)]'
+                      : 'bg-[#0B132B]/60 border-slate-800 text-slate-400 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{method.icon}</span>
-                    <div>
-                      <p className="text-xs font-bold text-white">{method.label}</p>
-                      <p className="text-[10px] text-slate-400">{method.sub}</p>
+                  <div className="text-lg mb-1">🏦</div>
+                  <div className="text-xs font-bold text-white">Direct Bank Transfer</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Verified by Bold Operations</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('card')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    paymentMethod === 'card'
+                      ? 'bg-[#0B132B] border-[#FF5A00] shadow-[0_0_15px_rgba(255,90,0,0.2)]'
+                      : 'bg-[#0B132B]/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="text-lg mb-1">💳</div>
+                  <div className="text-xs font-bold text-white">Instant Card / USSD</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Automated Gateway Lock</div>
+                </button>
+              </div>
+
+              {paymentMethod === 'transfer' ? (
+                <div className="space-y-4">
+                  <div className="bg-[#0B132B] p-5 rounded-xl border border-slate-800 space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Escrow Bank:</span>
+                      <span className="font-bold text-white">Providus Bank / Wema Escrow</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Account Number:</span>
+                      <span className="font-mono font-black text-[#FF5A00] text-sm tracking-widest">9948271039</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Account Name:</span>
+                      <span className="font-bold text-white">BOLD.NG ESCROW VAULT</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-800">
+                      <span className="text-slate-400">Exact Amount to Transfer:</span>
+                      <span className="font-mono font-black text-white text-base">₦{grandTotal.toLocaleString()}</span>
                     </div>
                   </div>
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    checked={selectedPaymentMethod === method.id}
-                    onChange={() => setSelectedPaymentMethod(method.id)}
-                    className="accent-[#FF5A00] h-4 w-4"
-                  />
-                </label>
-              ))}
+
+                  <div className="bg-[#0B132B] p-5 rounded-xl border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">📝 Submit Transfer Reference for Verification</h4>
+                    <p className="text-[11px] text-slate-400">Enter your transfer transaction reference below so the admin team can confirm your payment.</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-300 mb-1 uppercase">Your Bank Name</label>
+                        <input
+                          type="text"
+                          name="senderBank"
+                          placeholder="e.g., GTBank"
+                          value={paymentProof.senderBank}
+                          onChange={handleProofChange}
+                          className="w-full bg-[#16223F] text-white px-3 py-2.5 rounded-lg border border-slate-700 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-300 mb-1 uppercase">Transaction Ref / Teller ID</label>
+                        <input
+                          type="text"
+                          name="transactionReference"
+                          required
+                          placeholder="e.g., Ref 9948201..."
+                          value={paymentProof.transactionReference}
+                          onChange={handleProofChange}
+                          className="w-full bg-[#16223F] text-white px-3 py-2.5 rounded-lg border border-slate-700 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-[#0B132B] p-5 rounded-xl border border-slate-800 space-y-3">
+                  <p className="text-xs text-slate-300">Clicking authorize below will launch the secure gateway to lock funds instantly in escrow.</p>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-5 py-3 rounded-xl transition-colors cursor-pointer border-none"
+                >
+                  ← Back
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={handleFinalPaymentSubmit}
+                  className="bg-[#FF5A00] hover:bg-[#e04f00] text-white text-xs font-black uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all shadow-lg shadow-[#FF5A00]/30 cursor-pointer border-none flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Verifying & Locking in Vault...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔒 Authorize Escrow Deposit (₦{grandTotal.toLocaleString()})</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </section>
+          )}
+        </div>
 
-        </main>
-
-        {/* Right Column: Order Summary & Escrow Protection */}
-        <aside className="lg:col-span-5 space-y-4">
-          <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-5 text-left space-y-5 shadow-2xl sticky top-20">
-            
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 border-b border-slate-800/80 pb-3">
-              Order Items ({safeCartItems.length})
+        {/* Order Summary Sidebar */}
+        <div className="space-y-4">
+          <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-3">
+              📋 Order Summary ({safeCartItems.length} {safeCartItems.length === 1 ? 'Item' : 'Items'})
             </h3>
 
-            {/* Item List Preview */}
-            <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-              {safeCartItems.map((cartItem, idx) => {
-                const itemPrice = Number(cartItem?.price) || 0;
-                const itemQty = Number(cartItem?.quantity) || 1;
-                const key = cartItem?.id || cartItem?.docId || `checkout-item-${idx}`;
-
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              {safeCartItems.map((item, idx) => {
+                const p = parsePrice(item?.price ?? item?.amount ?? item?.cost ?? item?.unitPrice ?? 0);
+                const q = parseQty(item?.quantity ?? item?.qty ?? 1);
                 return (
-                  <div key={key} className="flex justify-between items-center text-xs">
-                    <div className="flex items-center gap-2 max-w-[70%]">
-                      <span className="w-6 h-6 rounded bg-[#0B132B] flex items-center justify-center shrink-0 text-xs overflow-hidden">
-                        {cartItem?.img && typeof cartItem.img === 'string' && cartItem.img.startsWith('http') ? (
-                          <img src={cartItem.img} alt="" className="w-full h-full object-cover rounded" />
-                        ) : '📦'}
-                      </span>
-                      <span className="truncate font-medium text-slate-200">{cartItem?.title || 'Product'}</span>
+                  <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 truncate">
+                      <span className="w-8 h-8 rounded-lg bg-[#0B132B] flex items-center justify-center text-sm shrink-0">📦</span>
+                      <div className="truncate">
+                        <p className="font-bold text-white truncate">{item.title || item.name || 'Marketplace Item'}</p>
+                        <p className="text-[10px] text-slate-400">Qty: {q}</p>
+                      </div>
                     </div>
-                    <span className="font-mono text-slate-400 shrink-0">
-                      x{itemQty} — ₦{(itemPrice * itemQty).toLocaleString()}
+                    <span className="font-mono font-bold text-white shrink-0">
+                      ₦{(p * q).toLocaleString()}
                     </span>
                   </div>
                 );
               })}
             </div>
 
-            {/* Fee Calculations */}
-            <div className="border-t border-slate-800/80 pt-4 space-y-2.5 font-mono text-xs text-slate-300">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="text-white font-bold">₦{itemSubtotal.toLocaleString()}</span>
+            <div className="pt-3 border-t border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Items Subtotal:</span>
+                <span className="font-mono text-white">₦{itemsSubtotal.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Inspection & Delivery Fee</span>
-                <span className="text-white font-bold">₦{inspectionFee.toLocaleString()}</span>
+              <div className="flex justify-between text-slate-400">
+                <span>Escrow Protection (1.5%):</span>
+                <span className="font-mono text-white">₦{escrowFee.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Escrow Processing ({isPremium ? '1.0%' : '1.5%'})</span>
-                <span className="text-white font-bold">₦{escrowProcessingFee.toLocaleString()}</span>
-              </div>
-              <div className="border-t border-slate-800/80 pt-3 flex justify-between items-baseline text-sm font-black text-white">
-                <span className="font-sans text-xs uppercase tracking-wider text-[#FF5A00]">Total Payable</span>
-                <span className="text-lg text-white">₦{totalPayout.toLocaleString()}</span>
+              <div className="flex justify-between text-slate-400">
+                <span>Hub Logistics:</span>
+                <span className="font-mono text-white">₦{deliveryFee.toLocaleString()}</span>
               </div>
             </div>
 
-            {/* Escrow Shield Notice */}
-            <div className="bg-[#0B132B] border border-slate-800 p-3.5 rounded-xl text-[11px] leading-relaxed text-slate-400 space-y-1">
-              <p className="text-white font-bold flex items-center gap-1.5">
-                🛡️ Bold.ng Buyer Protection
-              </p>
-              <p className="text-slate-400">
-                Funds are held in escrow and released to the vendor only when you inspect and confirm your package.
-              </p>
+            <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Total Escrow Allocation:</span>
+              <span className="text-lg font-black font-mono text-[#FF5A00]">
+                ₦{grandTotal.toLocaleString()}
+              </span>
             </div>
-
-            {/* Terms Agreement & CTA */}
-            <div className="space-y-3 pt-2">
-              <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                <input 
-                  type="checkbox"
-                  checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
-                  className="mt-0.5 accent-[#FF5A00] h-4 w-4 rounded border-slate-700 bg-[#0B132B]"
-                />
-                <span className="text-[10px] text-slate-400 leading-normal">
-                  I authorize locking funds into the escrow vault and agree to the inspection terms.
-                </span>
-              </label>
-
-              <button
-                type="button"
-                disabled={!agreedToTerms || isProcessing}
-                onClick={handlePaymentExecution}
-                className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all border-none ${
-                  agreedToTerms && !isProcessing
-                    ? 'bg-[#FF5A00] text-white hover:bg-[#e04f00] shadow-lg shadow-[#FF5A00]/20 cursor-pointer active:scale-95' 
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                {isProcessing ? 'Processing Payment...' : `Pay ₦${totalPayout.toLocaleString()}`}
-              </button>
-            </div>
-
           </div>
-        </aside>
+        </div>
 
       </div>
     </div>
