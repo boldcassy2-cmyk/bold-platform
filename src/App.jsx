@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 // Core UI Components
 import Home from './pages/Home';
 import Footer from './components/Footer';
+import RoleGuard from './components/RoleGuard';
 
 // Dynamic Lazy Imports
 const AuthPortal = lazy(() => import('./pages/AuthPortal'));
@@ -19,6 +20,16 @@ const EscrowProcessor = lazy(() => import('./pages/EscrowProcessor'));
 const EscrowCheckout = lazy(() => import('./pages/EscrowCheckout'));
 const CartSummaryPage = lazy(() => import('./pages/CartSummaryPage'));
 const ProductCatalogForm = lazy(() => import('./pages/ProductCatalogForm'));
+
+// Portal & Informational Views (Footer Navigation)
+const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
+const AutomotivePort = lazy(() => import('./pages/AutomotivePort'));
+const HowEscrowWorks = lazy(() => import('./pages/HowEscrowWorks'));
+const MerchantMatrix = lazy(() => import('./pages/MerchantMatrix'));
+const ApplyAsVendor = lazy(() => import('./pages/ApplyAsVendor'));
+const EscrowGuidelines = lazy(() => import('./pages/EscrowGuidelines'));
+const SecurityTelemetry = lazy(() => import('./pages/SecurityTelemetry'));
+const TermsOfProtocol = lazy(() => import('./pages/TermsOfProtocol'));
 
 // CEO Email Fallbacks
 const CEO_EMAILS = [
@@ -46,6 +57,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [activeTxPayload, setActiveTxPayload] = useState(null);
   const [globalItems, setGlobalItems] = useState([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const [cartItems, setCartItems] = useState(() => {
     try {
@@ -69,9 +81,8 @@ export default function App() {
   ]); 
   
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem('bold_dev_role') || 'CEO';
-  });
+  const [userRole, setUserRole] = useState('USER');
+  const [userDepartment, setUserDepartment] = useState('general');
 
   const [merchantStore, setMerchantStore] = useState({
     name: 'Bold Enterprise',
@@ -83,35 +94,30 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('bold_dev_role', userRole);
-    } catch (e) {}
-  }, [userRole]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('bold_cart_items', JSON.stringify(cartItems));
     } catch (e) {}
   }, [cartItems]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsMobileMenuOpen(false); // Close mobile drawer on page change
   }, [currentPage]);
 
-  // Clean, single authentication state observer effect
+  // Dynamic Authentication & Firestore Role/Department Synchronizer
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       
-      if (localStorage.getItem('bold_dev_role') === 'CEO' || localStorage.getItem('bold_dev_ceo_forced') === 'true') {
-        setUserRole('CEO');
-        return;
-      }
-
       if (user) {
         if (user.email && CEO_EMAILS.includes(user.email.toLowerCase())) {
           setUserRole('CEO');
+          setUserDepartment('admin');
+          setLoading(false);
           return;
         }
 
@@ -121,34 +127,32 @@ export default function App() {
           if (userSnapshot.exists()) {
             const data = userSnapshot.data();
             setUserRole(data?.role?.toUpperCase() || 'USER');
+            setUserDepartment(data?.department?.toLowerCase() || 'general');
           } else {
             setUserRole('USER');
+            setUserDepartment('general');
           }
         } catch (error) {
+          console.error('Error fetching user clearance:', error);
           setUserRole('USER');
+          setUserDepartment('general');
         }
       } else {
         setUserRole('USER');
+        setUserDepartment('general');
       }
+      setLoading(false);
     });
+
     return () => unsubscribeAuth();
   }, []);
-
-  const toggleExecutiveMode = () => {
-    setUserRole((prev) => {
-      const nextRole = prev === 'CEO' ? 'USER' : 'CEO';
-      localStorage.setItem('bold_dev_ceo_forced', nextRole === 'CEO' ? 'true' : 'false');
-      return nextRole;
-    });
-  };
 
   const handleLogout = async () => {
     try {
       if (auth) await signOut(auth);
       setUserRole('USER');
-      localStorage.removeItem('bold_dev_ceo_forced');
+      setUserDepartment('general');
       setCurrentPage('home');
-      alert('Logged out successfully.');
     } catch (error) {}
   };
 
@@ -177,7 +181,6 @@ export default function App() {
     const networkTimeoutGate = setTimeout(() => {
       if (isMounted) {
         setGlobalItems(FALLBACK_INVENTORY);
-        setLoading(false);
       }
     }, 2500);
 
@@ -185,7 +188,6 @@ export default function App() {
     try {
       if (!db) {
         setGlobalItems(FALLBACK_INVENTORY);
-        setLoading(false);
         return;
       }
 
@@ -203,13 +205,11 @@ export default function App() {
 
           if (fetchedItems.length === 0) fetchedItems = FALLBACK_INVENTORY;
           setGlobalItems(sortInventoryPriorities(fetchedItems));
-          setLoading(false);
         },
-        (error) => {
+        () => {
           clearTimeout(networkTimeoutGate);
           if (isMounted) {
             setGlobalItems(FALLBACK_INVENTORY);
-            setLoading(false);
           }
         }
       );
@@ -217,7 +217,6 @@ export default function App() {
       clearTimeout(networkTimeoutGate);
       if (isMounted) {
         setGlobalItems(FALLBACK_INVENTORY);
-        setLoading(false);
       }
     }
 
@@ -270,32 +269,26 @@ export default function App() {
     }
   };
 
-  const getRelatedItems = useCallback((activeItem) => {
-    if (!activeItem || !activeItem.title) return [];
-    const fullTitleLower = activeItem.title.toLowerCase();
-    
-    let searchKeyword = '';
-    if (fullTitleLower.includes('iphone')) searchKeyword = 'iphone';
-    else if (fullTitleLower.includes('macbook')) searchKeyword = 'macbook';
-    else if (fullTitleLower.includes('toyota')) searchKeyword = 'toyota';
-    else if (fullTitleLower.includes('hoodie')) searchKeyword = 'hoodie';
-
-    return globalItems.filter((item) => {
-      if (item.id === activeItem.id || item.docId === activeItem.docId) return false;
-      const targetTitleLower = item.title ? item.title.toLowerCase() : '';
-      const keywordMatch = searchKeyword && targetTitleLower.includes(searchKeyword);
-      const categoryMatch = item.category && activeItem.category && (item.category === activeItem.category);
-      return keywordMatch || categoryMatch;
-    }).slice(0, 4);
-  }, [globalItems]);
-
-  const USER_NAV = [
+  const HEADER_NAV = [
     { id: 'home', label: '🏠 Home' },
-    { id: 'marketplace', label: '🔍 Explore Market' },
+    { id: 'marketplace', label: '🛒 Discover Stores' },
     { id: 'addproduct', label: '➕ Add Product' },
     { id: 'dashboard', label: '📊 Dashboard' },
     { id: 'promotions', label: '📈 Promotions' },
     { id: 'escrow', label: '🛡️ Escrow Vault' },
+  ];
+
+  const FOOTER_NAV = [
+    { id: 'marketplace', label: 'Marketplace' },
+    { id: 'marketplace', label: 'Discover Stores' },
+    { id: 'streetwear', label: 'Streetwear Node' },
+    { id: 'automotive', label: 'Automotive Port' },
+    { id: 'escrow-how', label: 'How Escrow Works' },
+    { id: 'matrix', label: 'Merchant Matrix' },
+    { id: 'apply-vendor', label: 'Apply as Vendor' },
+    { id: 'escrow-guidelines', label: 'Escrow Guidelines' },
+    { id: 'telemetry', label: 'Security Telemetry' },
+    { id: 'terms', label: 'Terms of Protocol' },
   ];
 
   const renderDashboardByRole = () => {
@@ -311,10 +304,11 @@ export default function App() {
         />
       );
     }
-    if (userRole === 'STAFF') {
-      return <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />;
-    }
-    return <Store merchantStore={merchantStore} items={globalItems} transactions={globalTransactions} setCurrentPage={setCurrentPage} />;
+    return (
+      <RoleGuard userDepartment={userDepartment} allowedDepartments={['finance', 'inspection', 'support', 'delivery', 'admin']}>
+        <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+      </RoleGuard>
+    );
   };
 
   const renderCurrentView = () => {
@@ -331,9 +325,11 @@ export default function App() {
       case 'escrow':
         return <EscrowTracker transactions={globalTransactions} />;
       case 'escrow-dashboard':
-        return userRole === 'STAFF' || userRole === 'CEO' 
-          ? <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
-          : <Home setCurrentPage={setCurrentPage} />;
+        return (
+          <RoleGuard userDepartment={userDepartment} allowedDepartments={['finance', 'inspection', 'support', 'delivery', 'admin']}>
+            <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+          </RoleGuard>
+        );
       case 'ceo':
         return userRole === 'CEO' 
           ? (
@@ -347,7 +343,7 @@ export default function App() {
               />
             )
           : <Home setCurrentPage={setCurrentPage} />;
-     case 'marketplace':
+      case 'marketplace':
         return (
           <Marketplace 
             setCurrentPage={setCurrentPage} 
@@ -358,6 +354,22 @@ export default function App() {
             onViewCart={() => setCurrentPage('cart')}
           />
         );
+      case 'streetwear':
+        return <StreetwearNode onNavigate={setCurrentPage} onAddToCart={handleAddToCart} />;
+      case 'automotive':
+        return <AutomotivePort onNavigate={setCurrentPage} onAddToCart={handleAddToCart} />;
+      case 'escrow-how':
+        return <HowEscrowWorks onNavigate={setCurrentPage} />;
+      case 'matrix':
+        return <MerchantMatrix onNavigate={setCurrentPage} />;
+      case 'apply-vendor':
+        return <ApplyAsVendor onNavigate={setCurrentPage} />;
+      case 'escrow-guidelines':
+        return <EscrowGuidelines onNavigate={setCurrentPage} />;
+      case 'telemetry':
+        return <SecurityTelemetry onNavigate={setCurrentPage} />;
+      case 'terms':
+        return <TermsOfProtocol onNavigate={setCurrentPage} />;
       case 'addproduct':
         return <ProductCatalogForm onAddProductComplete={handleAddNewProduct} setCurrentPage={setCurrentPage} />;
       case 'checkout':
@@ -365,13 +377,12 @@ export default function App() {
       case 'escrow-checkout':
         return (
           <EscrowCheckout
-            cartItems={activeTxPayload ? [activeTxPayload] : cartItems}
+            cartItems={activeTxPayload ? [activeTxPayload] : (cartItems.length > 0 ? cartItems : [{ id: 'fallback-1', title: 'Verified Escrow Package', price: 105000, quantity: 1 }])}
             onCancel={() => {
               setActiveTxPayload(null);
               setCurrentPage(activeTxPayload ? 'marketplace' : 'cart');
             }}
             onConfirmPayment={() => {
-              // 1. Create a clean transaction entry for the vault
               const itemsToCheckOut = activeTxPayload ? [activeTxPayload] : cartItems;
               const orderTotal = itemsToCheckOut.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
               const firstItemTitle = itemsToCheckOut[0]?.title || 'Multi-Item Order';
@@ -389,10 +400,7 @@ export default function App() {
                 type: itemsToCheckOut[0]?.category || 'General Commerce'
               };
 
-              // 2. Prepend to global transactions tracker state
               setGlobalTransactions((prev) => [newTransaction, ...prev]);
-
-              // 3. Reset active payload and clear shopping cart states
               setActiveTxPayload(null);
               setCartItems([]);
               try {
@@ -400,8 +408,6 @@ export default function App() {
                 localStorage.removeItem('bold_cart');
               } catch (e) {}
               window.dispatchEvent(new Event('cartUpdated'));
-
-              // 4. Smoothly route straight to Escrow Vault Tracker screen
               setCurrentPage('escrow');
             }}
             onNavigate={(page) => setCurrentPage(page || 'marketplace')}
@@ -428,100 +434,200 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0B132B] text-white antialiased font-sans pb-12 selection:bg-[#FF5A00] selection:text-white flex flex-col justify-between">
       <div>
-        <header className="bg-[#16223F] py-4 px-6 sticky top-0 z-50 shadow-2xl flex flex-col lg:flex-row justify-between items-center gap-4 border-b-2 border-[#FF5A00]">
-          <div 
-            className="flex items-center gap-3 cursor-pointer select-none group" 
-            onClick={() => setCurrentPage('home')}
-          >
-            <div className="w-11 h-11 bg-[#FF5A00] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,90,0,0.4)] group-hover:scale-105 transition-transform">
-              <span className="text-white text-2xl font-black">B</span>
+        <header className="bg-[#16223F] py-4 px-6 sticky top-0 z-50 shadow-2xl flex flex-col justify-between border-b-2 border-[#FF5A00]">
+          <div className="flex justify-between items-center w-full">
+            <div 
+              className="flex items-center gap-3 cursor-pointer select-none group" 
+              onClick={() => setCurrentPage('home')}
+            >
+              <div className="w-11 h-11 bg-[#FF5A00] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,90,0,0.4)] group-hover:scale-105 transition-transform">
+                <span className="text-white text-2xl font-black">B</span>
+              </div>
+              <span className="text-2xl font-black tracking-tighter uppercase">
+                BOLD<span className="text-[#FF5A00]">.NG</span>
+              </span>
             </div>
-            <span className="text-2xl font-black tracking-tighter uppercase">
-              BOLD<span className="text-[#FF5A00]">.NG</span>
-            </span>
-          </div>
 
-          <nav className="flex flex-wrap gap-2 justify-center items-center">
-            {USER_NAV.map((nav) => (
+            {/* Mobile Hamburger Button */}
+            <div className="flex items-center gap-2 lg:hidden">
               <button
-                key={nav.id}
                 type="button"
                 onClick={() => {
                   setActiveTxPayload(null);
-                  setCurrentPage(nav.id);
+                  setCurrentPage('cart');
                 }}
-                className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
-                  currentPage === nav.id ? 'bg-[#FF5A00] text-white' : 'bg-slate-900/60 hover:bg-slate-800 text-slate-300'
-                }`}
+                className="text-xs font-black px-3 py-2 rounded-xl bg-slate-900 text-slate-200 border border-slate-700 flex items-center gap-1.5"
               >
-                {nav.label}
+                🛒 {totalCartCount > 0 && <span className="bg-[#FF5A00] text-white text-[10px] px-1.5 py-0.2 rounded-full">{totalCartCount}</span>}
               </button>
-            ))}
-
-            {/* ONLY visible to CEO: Dedicated Executive Portal Link */}
-            {userRole === 'CEO' && (
-              <button 
-                type="button" 
-                onClick={() => setCurrentPage('ceo')} 
-                className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors bg-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.4)]`}
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="w-10 h-10 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center text-white text-lg focus:outline-none"
+                aria-label="Toggle Mobile Menu"
               >
-                👑 CEO Portal ⚡
+                {isMobileMenuOpen ? '✕' : '☰'}
               </button>
-            )}
+            </div>
 
-            {/* ONLY visible to Staff / Admins */}
-            {userRole === 'STAFF' && (
-              <button 
-                type="button" 
-                onClick={() => setCurrentPage('escrow-dashboard')} 
-                className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
-                  currentPage === 'escrow-dashboard' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-blue-400 bg-blue-950/20 border border-blue-900/40 hover:bg-blue-900/40'
-                }`}
-              >
-                ⚡ Ops Telemetry
-              </button>
-            )}
+            {/* Desktop Navigation Links */}
+            <nav className="hidden lg:flex flex-wrap gap-2 justify-center items-center max-w-4xl">
+              {HEADER_NAV.map((nav) => (
+                <button
+                  key={nav.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTxPayload(null);
+                    setCurrentPage(nav.id);
+                  }}
+                  className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
+                    currentPage === nav.id ? 'bg-[#FF5A00] text-white' : 'bg-slate-900/65 hover:bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {nav.label}
+                </button>
+              ))}
 
-            <button 
-              type="button" 
-              onClick={() => {
-                setActiveTxPayload(null);
-                setCurrentPage('cart');
-              }} 
-              className={`text-xs font-black px-4 py-2 rounded-xl border-none cursor-pointer flex items-center gap-2 transition-colors ${
-                currentPage === 'cart' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] hover:bg-slate-900 text-slate-200'
-              }`}
-            >
-              🛒 Basket 
-              {totalCartCount > 0 && (
-                <span className="bg-[#FF5A00] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {totalCartCount}
-                </span>
+              {userRole === 'CEO' && (
+                <button 
+                  type="button" 
+                  onClick={() => setCurrentPage('ceo')} 
+                  className="text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors bg-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.4)]"
+                >
+                  👑 CEO Portal ⚡
+                </button>
               )}
-            </button>
 
-            {currentUser ? (
+              {(userRole === 'STAFF' || userRole === 'CEO') && (
+                <button 
+                  type="button" 
+                  onClick={() => setCurrentPage('escrow-dashboard')} 
+                  className={`text-xs font-black px-3 py-2 rounded-xl border-none cursor-pointer transition-colors ${
+                    currentPage === 'escrow-dashboard' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'text-blue-400 bg-blue-950/20 border border-blue-900/40 hover:bg-blue-900/40'
+                  }`}
+                >
+                  ⚡ Ops Telemetry ({userDepartment.toUpperCase()})
+                </button>
+              )}
+
               <button 
                 type="button" 
-                onClick={handleLogout} 
-                className="text-xs font-black px-3 py-2 rounded-xl border border-red-500/40 text-red-400 bg-red-950/20 hover:bg-red-900/40 cursor-pointer transition-colors"
-              >
-                🚪 Log Out
-              </button>
-            ) : (
-              <button 
-                type="button" 
-                onClick={() => setCurrentPage('signup')} 
-                className={`text-xs font-black px-3 py-2 rounded-xl border border-slate-700 text-slate-300 bg-slate-900 hover:bg-slate-800 cursor-pointer transition-colors ${
-                  currentPage === 'signup' ? 'bg-[#FF5A00] text-white border-transparent' : ''
+                onClick={() => {
+                  setActiveTxPayload(null);
+                  setCurrentPage('cart');
+                }} 
+                className={`text-xs font-black px-4 py-2 rounded-xl border-none cursor-pointer flex items-center gap-2 transition-colors ${
+                  currentPage === 'cart' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] hover:bg-slate-900 text-slate-200'
                 }`}
               >
-                🔑 Login / Sign Up
+                🛒 Basket 
+                {totalCartCount > 0 && (
+                  <span className="bg-[#FF5A00] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {totalCartCount}
+                  </span>
+                )}
               </button>
-            )}
-          </nav>
+
+              {currentUser ? (
+                <button 
+                  type="button" 
+                  onClick={handleLogout} 
+                  className="text-xs font-black px-3 py-2 rounded-xl border border-red-500/40 text-red-400 bg-red-950/20 hover:bg-red-900/40 cursor-pointer transition-colors"
+                >
+                  🚪 Log Out
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={() => setCurrentPage('signup')} 
+                  className={`text-xs font-black px-3 py-2 rounded-xl border border-slate-700 text-slate-300 bg-slate-900 hover:bg-slate-800 cursor-pointer transition-colors ${
+                    currentPage === 'signup' ? 'bg-[#FF5A00] text-white border-transparent' : ''
+                  }`}
+                >
+                  🔑 Login / Sign Up
+                </button>
+              )}
+            </nav>
+          </div>
+
+          {/* Mobile Collapsible Navigation Drawer */}
+          {isMobileMenuOpen && (
+            <nav className="flex flex-col gap-2 pt-4 pb-2 lg:hidden border-t border-slate-800 mt-3 animate-fadeIn">
+              {HEADER_NAV.map((nav) => (
+                <button
+                  key={nav.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTxPayload(null);
+                    setCurrentPage(nav.id);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`text-sm font-black px-4 py-3 rounded-xl text-left border-none cursor-pointer transition-colors ${
+                    currentPage === nav.id ? 'bg-[#FF5A00] text-white' : 'bg-slate-900 text-slate-200'
+                  }`}
+                >
+                  {nav.label}
+                </button>
+              ))}
+
+              {userRole === 'CEO' && (
+                <button 
+                  type="button" 
+                  onClick={() => { setCurrentPage('ceo'); setIsMobileMenuOpen(false); }} 
+                  className="text-sm font-black px-4 py-3 rounded-xl border-none cursor-pointer text-left bg-amber-500 text-slate-950"
+                >
+                  👑 CEO Portal ⚡
+                </button>
+              )}
+
+              {(userRole === 'STAFF' || userRole === 'CEO') && (
+                <button 
+                  type="button" 
+                  onClick={() => { setCurrentPage('escrow-dashboard'); setIsMobileMenuOpen(false); }} 
+                  className="text-sm font-black px-4 py-3 rounded-xl border border-blue-900 text-blue-400 bg-blue-950/30 text-left"
+                >
+                  ⚡ Ops Telemetry ({userDepartment.toUpperCase()})
+                </button>
+              )}
+
+              <button 
+                type="button" 
+                onClick={() => {
+                  setActiveTxPayload(null);
+                  setCurrentPage('cart');
+                  setIsMobileMenuOpen(false);
+                }} 
+                className="text-sm font-black px-4 py-3 rounded-xl bg-slate-900 text-slate-200 text-left flex justify-between items-center"
+              >
+                <span>🛒 View Basket</span>
+                {totalCartCount > 0 && (
+                  <span className="bg-[#FF5A00] text-white text-xs font-black px-2 py-0.5 rounded-full">
+                    {totalCartCount} items
+                  </span>
+                )}
+              </button>
+
+              {currentUser ? (
+                <button 
+                  type="button" 
+                  onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
+                  className="text-sm font-black px-4 py-3 rounded-xl border border-red-500/40 text-red-400 bg-red-950/20 text-left"
+                >
+                  🚪 Log Out
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={() => { setCurrentPage('signup'); setIsMobileMenuOpen(false); }} 
+                  className="text-sm font-black px-4 py-3 rounded-xl border border-slate-700 text-slate-300 bg-slate-900 text-left"
+                >
+                  🔑 Login / Sign Up
+                </button>
+              )}
+            </nav>
+          )}
         </header>
 
         {currentPage !== 'marketplace' && currentPage !== 'home' && !loading && (
@@ -560,7 +666,7 @@ export default function App() {
         </main>
       </div>
 
-      <Footer />
+      <Footer footerNav={FOOTER_NAV} onNavigate={setCurrentPage} />
     </div>
   );
 }

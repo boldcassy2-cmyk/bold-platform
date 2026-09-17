@@ -52,7 +52,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
       return;
     }
 
-    // Query active escrow records where user is buyer or seller
+    // Query active escrow records where user is buyer
     const q = query(
       collection(db, 'escrow_transactions'),
       where('buyerId', '==', currentUser.uid)
@@ -65,6 +65,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
           id: doc.id,
           ...doc.data(),
         }));
+        // If user has no live transactions yet, gracefully fallback to mock dataset for development preview
         setTransactions(txList.length > 0 ? txList : mockTransactions);
         setLoading(false);
       },
@@ -92,14 +93,14 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
     return tx.status === activeTab;
   });
 
-  // Calculate high-level vault statistics
+  // Calculate high-level vault statistics safely
   const totalVaulted = transactions
     .filter((tx) => tx.status === 'FUNDED')
-    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    .reduce((sum, tx) => sum + Number(tx.amount || tx.price || 0), 0);
 
   const totalSettled = transactions
     .filter((tx) => tx.status === 'RELEASED')
-    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    .reduce((sum, tx) => sum + Number(tx.amount || tx.price || 0), 0);
 
   // If a specific transaction is selected, show the EscrowProcessor node
   if (selectedTx) {
@@ -125,7 +126,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
         <button
           type="button"
           onClick={() => setCurrentPage && setCurrentPage('marketplace')}
-          className="self-start md:self-auto text-xs font-bold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer"
+          className="self-start md:self-auto text-xs font-bold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer border-none"
         >
           ← Marketplace
         </button>
@@ -171,7 +172,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
-            className={`text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+            className={`text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap border-none ${
               activeTab === tab
                 ? 'bg-[#FF5A00] text-white shadow-md shadow-[#FF5A00]/20'
                 : 'bg-[#16223F]/50 text-slate-400 hover:text-white border border-slate-800'
@@ -203,7 +204,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
                 <div>
                   <span className="text-[10px] font-mono text-slate-400 block">{tx.id}</span>
                   <h3 className="text-base font-bold text-white group-hover:text-[#FF5A00] transition-colors mt-0.5">
-                    {tx.itemTitle}
+                    {tx.itemTitle || tx.title || 'Marketplace Asset'}
                   </h3>
                 </div>
                 <StatusBadge status={tx.status} />
@@ -212,11 +213,11 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
               <div className="grid grid-cols-2 gap-2 text-xs border-y border-slate-800/80 py-3 my-1">
                 <div>
                   <span className="text-slate-500 text-[10px] uppercase font-bold block">Merchant</span>
-                  <span className="text-slate-300 font-medium block truncate">{tx.seller}</span>
+                  <span className="text-slate-300 font-medium block truncate">{tx.seller || 'Verified Merchant'}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 text-[10px] uppercase font-bold block">Purchaser</span>
-                  <span className="text-slate-300 font-medium block truncate">{tx.buyer}</span>
+                  <span className="text-slate-300 font-medium block truncate">{tx.buyer || currentUser?.displayName || 'Dedon Cassidy'}</span>
                 </div>
               </div>
 
@@ -224,7 +225,7 @@ export default function EscrowDashboard({ currentUser, setCurrentPage }) {
                 <div>
                   <span className="text-[10px] font-mono text-slate-500 block">Amount</span>
                   <span className="text-lg font-black text-white font-mono">
-                    ₦{Number(tx.amount).toLocaleString()}
+                    ₦{Number(tx.amount || tx.price || 0).toLocaleString()}
                   </span>
                 </div>
                 <span className="text-xs font-bold text-[#FF5A00] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
@@ -253,7 +254,7 @@ const StatusBadge = ({ status }) => {
         styles[status] || 'bg-slate-800 text-slate-400 border-slate-700'
       }`}
     >
-      {status}
+      {status || 'PENDING'}
     </span>
   );
 };

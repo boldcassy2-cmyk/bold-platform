@@ -1,311 +1,220 @@
-import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import React, { useState } from 'react';
 
-export default function CeoDashboard({ transactions = [], setTransactions, items = [] }) {
+export default function CeoDashboard({ transactions = [], setTransactions, items = [], usersList = [], staffLogs = [], userRole }) {
   const [activeTab, setActiveTab] = useState('overview');
-  const [totalUsers, setTotalUsers] = useState(142); // Seeded live baseline + cloud sync
-  const [selectedDispute, setSelectedDispute] = useState(null);
-  const [resolutionNote, setResolutionNote] = useState('');
 
-  // Realtime or fallback user count sync from Firestore
-  useEffect(() => {
-    if (!db) return;
-    try {
-      const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-        if (!snap.empty) setTotalUsers(snap.size + 120); // base shift offset or raw size
-      }, () => {});
-      return () => unsub();
-    } catch (e) {}
-  }, []);
-
-  // Compute Revenue & Escrow Telemetry
-  const revenueStats = {
-    totalVolume: transactions.reduce((acc, t) => acc + Number(t.amount || 0), 0),
-    escrowLocked: transactions
-      .filter(t => t.status === 'In Escrow Vault' || t.status === 'Disputed')
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0),
-    activeDisputes: transactions.filter(t => t.status === 'Disputed' || t.status === 'In Escrow Vault').length,
-    completedTxCount: transactions.filter(t => t.status === 'Completed' || t.status === 'Released to Merchant').length
-  };
-
-  // Compute High-Interest Demand Ranking (based on promotional tier / broadcast weight)
-  const topInterestedProducts = [...items].sort((a, b) => {
-    const tierMap = { broadcast: 3, trending: 2, sidebar: 1 };
-    const scoreA = tierMap[a?.promotionSettings?.adPlacement] || 0;
-    const scoreB = tierMap[b?.promotionSettings?.adPlacement] || 0;
-    return scoreB - scoreA;
-  }).slice(0, 5);
-
-  // Compute Category Distribution
-  const categoryBreakdown = items.reduce((acc, item) => {
-    const cat = item.category || 'general';
-    acc[cat] = (acc[cat] || 0) + 1;
-    return acc;
-  }, {});
-
-  const disputes = transactions.filter(t => t.status === 'Disputed' || t.status === 'In Escrow Vault');
-
-  const handleResolve = async (txId, decision) => {
-    try {
-      const updatedStatus = decision === 'release' ? 'Released to Merchant' : 'Refunded to Buyer';
-      if (db) {
-        await updateDoc(doc(db, 'transactions', txId), { status: updatedStatus, resolutionNote });
-      }
-      setTransactions(prev =>
-        prev.map(t => (t.id === txId ? { ...t, status: updatedStatus, resolutionNote } : t))
-      );
-      setSelectedDispute(null);
-      setResolutionNote('');
-    } catch (error) {
-      setTransactions(prev =>
-        prev.map(t => (t.id === txId ? { ...t, status: decision === 'release' ? 'Released to Merchant' : 'Refunded to Buyer', resolutionNote } : t))
-      );
-      setSelectedDispute(null);
-      setResolutionNote('');
-    }
-  };
+  const totalVolume = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  const activeEscrowCount = transactions.filter(tx => tx.status === 'In Escrow Vault').length;
 
   return (
-    <div className="space-y-6 text-white pb-12">
-      {/* Executive Header */}
-      <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      {/* CEO Top Banner */}
+      <div className="bg-gradient-to-r from-amber-600 via-[#FF5A00] to-[#0B132B] p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">👑</span>
-            <h1 className="text-2xl font-black uppercase tracking-tight">Executive Command Center</h1>
-          </div>
-          <p className="text-xs text-slate-400 font-mono mt-1">bold.ng Macro Analytics, Inventory Depth & Vault Arbitration</p>
+          <span className="bg-slate-950/40 text-amber-300 text-[10px] font-mono uppercase tracking-widest px-3 py-1 rounded-full border border-amber-400/30">
+            👑 Master Authority Clearance
+          </span>
+          <h1 className="text-2xl md:text-3xl font-black text-white mt-2 tracking-tight">
+            CEO Command & Control Center
+          </h1>
+          <p className="text-xs text-slate-100/90 mt-1">
+            Total Oversight: Finance, Logistics, HR, Inspection, & Staff Telemetry
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('overview')}
-            className={`text-xs font-black px-4 py-2 rounded-xl border cursor-pointer transition-colors ${
-              activeTab === 'overview' ? 'bg-[#FF5A00] border-transparent text-white' : 'bg-slate-900 border-slate-700 text-slate-300'
-            }`}
-          >
-            📊 Macro & Demand
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('mediation')}
-            className={`text-xs font-black px-4 py-2 rounded-xl border cursor-pointer transition-colors ${
-              activeTab === 'mediation' ? 'bg-[#FF5A00] border-transparent text-white' : 'bg-slate-900 border-slate-700 text-slate-300'
-            }`}
-          >
-            ⚖️ Mediation Queue ({disputes.length})
-          </button>
+
+        <div className="flex gap-3">
+          <div className="bg-slate-950/60 backdrop-blur px-4 py-2.5 rounded-xl border border-white/10 text-right">
+            <span className="text-[10px] text-slate-400 block uppercase">Total Volume</span>
+            <span className="text-sm font-black text-emerald-400">₦{totalVolume.toLocaleString()}</span>
+          </div>
+          <div className="bg-slate-950/60 backdrop-blur px-4 py-2.5 rounded-xl border border-white/10 text-right">
+            <span className="text-[10px] text-slate-400 block uppercase">Active Escrows</span>
+            <span className="text-sm font-black text-amber-400">{activeEscrowCount}</span>
+          </div>
         </div>
       </div>
 
-      {activeTab === 'overview' ? (
-        <div className="space-y-6">
-          {/* Macro KPI Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-5">
-              <p className="text-[11px] font-mono text-slate-400 uppercase">Registered Users</p>
-              <p className="text-3xl font-black mt-2 text-white">{totalUsers.toLocaleString()}</p>
-              <span className="text-[10px] text-emerald-400 font-mono mt-1 block">↗ Active Node Base</span>
+      {/* Departmental & Staff Navigation Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+        {[
+          { id: 'overview', label: '📊 Executive Overview' },
+          { id: 'finance', label: '💰 Finance Dashboard' },
+          { id: 'logistics', label: '🚚 Logistics & Hubs' },
+          { id: 'hr', label: '👥 HR & Staff Directory' },
+          { id: 'inspection', label: '🔍 Inspection & Quality' },
+          { id: 'telemetry', label: '⚡ Security Audit Logs' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-xs font-black px-4 py-2.5 rounded-xl border-none cursor-pointer transition-all ${
+              activeTab === tab.id 
+                ? 'bg-[#FF5A00] text-white shadow-[0_0_12px_rgba(255,90,0,0.4)]' 
+                : 'bg-[#16223F] hover:bg-slate-800 text-slate-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content Display */}
+      <div className="space-y-6">
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
+              <span className="text-xs text-slate-400 font-bold uppercase">Total Platform Catalog</span>
+              <p className="text-2xl font-black text-white mt-1">{items.length} Active Items</p>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('finance')}
+                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+              >
+                View Financial Logs →
+              </button>
             </div>
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-5">
-              <p className="text-[11px] font-mono text-slate-400 uppercase">Total Products Uploaded</p>
-              <p className="text-3xl font-black mt-2 text-[#FF5A00]">{items.length}</p>
-              <span className="text-[10px] text-slate-400 font-mono mt-1 block">Live Catalog Stock</span>
+            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
+              <span className="text-xs text-slate-400 font-bold uppercase">Total Registered Users</span>
+              <p className="text-2xl font-black text-white mt-1">{usersList.length} Accounts</p>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('hr')}
+                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+              >
+                Inspect HR Directory →
+              </button>
             </div>
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-5">
-              <p className="text-[11px] font-mono text-slate-400 uppercase">Gross Platform Volume</p>
-              <p className="text-2xl font-black mt-2 text-white">₦{revenueStats.totalVolume.toLocaleString()}</p>
-              <span className="text-[10px] text-slate-400 font-mono mt-1 block">{revenueStats.completedTxCount} Completed Orders</span>
-            </div>
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-5">
-              <p className="text-[11px] font-mono text-slate-400 uppercase">Vault Escrow Locked</p>
-              <p className="text-2xl font-black mt-2 text-amber-400">₦{revenueStats.escrowLocked.toLocaleString()}</p>
-              <span className="text-[10px] text-red-400 font-mono mt-1 block">{revenueStats.activeDisputes} Active Review Cases</span>
+            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
+              <span className="text-xs text-slate-400 font-bold uppercase">Staff Action Audit Trail</span>
+              <p className="text-2xl font-black text-white mt-1">{staffLogs.length} Actions Logged</p>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('telemetry')}
+                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+              >
+                View Telemetry →
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Deep Demand & Category Analytics Split */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Top Interested / Promoted Demand */}
-            <div className="lg:col-span-2 bg-[#16223F] border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-300">🔥 High-Interest / Promoted Market Demand</h3>
-                <span className="text-[10px] font-mono text-slate-400">Ranked by Broadcast/Trending Tier</span>
-              </div>
-              <div className="divide-y divide-slate-800/80">
-                {topInterestedProducts.length === 0 ? (
-                  <p className="text-xs text-slate-500 font-mono py-4">No inventory items indexed yet.</p>
-                ) : (
-                  topInterestedProducts.map((prod, idx) => (
-                    <div key={prod.id || idx} className="py-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{prod.img || '📦'}</span>
-                        <div>
-                          <p className="text-xs font-bold text-white line-clamp-1">{prod.title}</p>
-                          <p className="text-[10px] font-mono text-slate-400">{prod.location || 'Lagos'} • {prod.category || 'general'}</p>
-                        </div>
-                      </div>
-                      <div className="text-right flex items-center gap-3">
-                        <div>
-                          <p className="text-xs font-mono font-bold text-white">₦{Number(prod.price || 0).toLocaleString()}</p>
-                          <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-[#FF5A00]/20 text-[#FF5A00]">
-                            {prod.promotionSettings?.adPlacement || 'standard'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Category Stock Distribution */}
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-300">📂 Category Supply Depth</h3>
-              <div className="space-y-3 font-mono text-xs">
-                {Object.keys(categoryBreakdown).length === 0 ? (
-                  <p className="text-slate-500">No categories active.</p>
-                ) : (
-                  Object.entries(categoryBreakdown).map(([cat, count]) => (
-                    <div key={cat} className="flex justify-between items-center bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-                      <span className="capitalize font-sans font-bold text-slate-200">{cat}</span>
-                      <span className="bg-[#FF5A00]/20 text-[#FF5A00] px-2.5 py-1 rounded-full text-xs font-bold">
-                        {count} items
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Live Transaction Ledger */}
-          <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6">
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-300 mb-4">Live Transaction Ledger</h3>
+        {activeTab === 'finance' && (
+          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 className="text-lg font-black text-white">💰 Finance Department Vault & Ledger</h2>
+            <p className="text-xs text-slate-400">Monitoring all escrow disbursements, gateway inflows, and revenue collections.</p>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="border-b border-slate-700 text-slate-400">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
                   <tr>
-                    <th className="pb-3">ID</th>
-                    <th className="pb-3">Item / Description</th>
-                    <th className="pb-3">Hub</th>
-                    <th className="pb-3">Amount</th>
-                    <th className="pb-3">Status</th>
+                    <th className="p-3">TX ID</th>
+                    <th className="p-3">Description</th>
+                    <th className="p-3">Amount</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {transactions.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="py-6 text-center text-slate-500">No transactions recorded yet.</td>
+                  {transactions.map((tx, idx) => (
+                    <tr key={idx} className="hover:bg-slate-900/40">
+                      <td className="p-3 font-mono font-bold text-[#FF5A00]">{tx.id}</td>
+                      <td className="p-3">{tx.title}</td>
+                      <td className="p-3 font-mono font-bold">₦{Number(tx.amount || 0).toLocaleString()}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                          tx.status === 'Completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'
+                        }`}>
+                          {tx.status}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono">{tx.date}</td>
                     </tr>
-                  ) : (
-                    transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-900/40">
-                        <td className="py-3 text-[#FF5A00] font-bold">{tx.id}</td>
-                        <td className="py-3 text-white font-sans">{tx.title}</td>
-                        <td className="py-3 text-slate-400">{tx.hub || 'Lagos Hub'}</td>
-                        <td className="py-3 text-white">₦{Number(tx.amount || 0).toLocaleString()}</td>
-                        <td className="py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            tx.status === 'Completed' || tx.status === 'Released to Merchant' ? 'bg-emerald-500/20 text-emerald-400' :
-                            tx.status === 'Disputed' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'
-                          }`}>
-                            {tx.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      ) : (
-        /* Inline Mediation Center */
-        <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6 text-white space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-700 pb-4">
-            <div>
-              <h2 className="text-xl font-black uppercase tracking-tight">⚖️ Executive Mediation Center</h2>
-              <p className="text-xs text-slate-400 font-mono">Resolve disputed escrow releases & inspection logs</p>
-            </div>
-            <span className="bg-amber-500/20 text-amber-400 text-xs font-mono px-3 py-1.5 rounded-full border border-amber-500/30">
-              {disputes.length} Active Queue
-            </span>
-          </div>
+        )}
 
-          {disputes.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-sm font-mono">
-              ✅ No active vault disputes requiring executive intervention.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                {disputes.map((tx) => (
-                  <div
-                    key={tx.id}
-                    onClick={() => setSelectedDispute(tx)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                      selectedDispute?.id === tx.id
-                        ? 'border-[#FF5A00] bg-[#0B132B]'
-                        : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-mono text-xs text-[#FF5A00] font-bold">{tx.id}</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                        {tx.status}
-                      </span>
-                    </div>
-                    <p className="font-bold text-sm">{tx.title}</p>
-                    <p className="text-xs text-slate-400 mt-1 font-mono">Amount: ₦{Number(tx.amount || 0).toLocaleString()}</p>
-                  </div>
-                ))}
+        {activeTab === 'logistics' && (
+          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 className="text-lg font-black text-white">🚚 Logistics Hubs & Dispatch Operations</h2>
+            <p className="text-xs text-slate-400">Manage regional fulfillment hubs (Lagos Hub, Abuja Node) and delivery statuses.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs font-bold text-emerald-400 uppercase">● Lagos Central Hub</span>
+                <p className="text-xs text-slate-300 mt-2">Active Dispatch Officers: 4</p>
+                <p className="text-xs text-slate-300">Status: Operational & Fully Synchronized</p>
               </div>
-
-              {selectedDispute ? (
-                <div className="bg-[#0B132B] border border-slate-800 rounded-xl p-5 space-y-4">
-                  <h3 className="font-bold text-sm text-amber-400 font-mono">Case File: {selectedDispute.id}</h3>
-                  <p className="text-sm font-semibold">{selectedDispute.title}</p>
-                  
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Executive Ruling Note</label>
-                    <textarea
-                      value={resolutionNote}
-                      onChange={(e) => setResolutionNote(e.target.value)}
-                      placeholder="Document inspection findings or arbitration reason..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
-                      rows="3"
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleResolve(selectedDispute.id, 'release')}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2.5 rounded-xl cursor-pointer transition-colors"
-                    >
-                      Release Funds to Merchant
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleResolve(selectedDispute.id, 'refund')}
-                      className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-black py-2.5 rounded-xl cursor-pointer transition-colors"
-                    >
-                      Refund Buyer
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-[#0B132B]/50 border border-dashed border-slate-800 rounded-xl flex items-center justify-center p-8 text-center text-xs text-slate-500 font-mono">
-                  Select a transaction case from the left to inspect and issue a ruling.
-                </div>
-              )}
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs font-bold text-emerald-400 uppercase">● Abuja Regional Node</span>
+                <p className="text-xs text-slate-300 mt-2">Active Dispatch Officers: 2</p>
+                <p className="text-xs text-slate-300">Status: Operational & Fully Synchronized</p>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {activeTab === 'hr' && (
+          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 className="text-lg font-black text-white">👥 Human Resources & Staff Directory</h2>
+            <p className="text-xs text-slate-400">Review staff accounts, department clearances, and role assignments.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
+                  <tr>
+                    <th className="p-3">Staff / Merchant Name</th>
+                    <th className="p-3">Email</th>
+                    <th className="p-3">Role</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {usersList.map((usr, idx) => (
+                    <tr key={idx} className="hover:bg-slate-900/40">
+                      <td className="p-3 font-bold text-white">{usr.name}</td>
+                      <td className="p-3 font-mono">{usr.email}</td>
+                      <td className="p-3">
+                        <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                          {usr.role}
+                        </span>
+                      </td>
+                      <td className="p-3 text-emerald-400 font-bold">{usr.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'inspection' && (
+          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 className="text-lg font-black text-white">🔍 Item Inspection & Quality Control</h2>
+            <p className="text-xs text-slate-400">Review items pending physical verification at escrow hubs before release to buyers.</p>
+            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
+              <p>All active catalog items are currently verified. No inspection anomalies reported.</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'telemetry' && (
+          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 className="text-lg font-black text-white">⚡ Security Telemetry & Staff Action Logs</h2>
+            <p className="text-xs text-slate-400">Real-time audit trail recording every administrative and staff action across the protocol.</p>
+            <div className="space-y-2">
+              {staffLogs.map((log, idx) => (
+                <div key={idx} className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="font-bold text-[#FF5A00]">{log.staff}</span>: <span className="text-slate-200">{log.action}</span>
+                  </div>
+                  <span className="font-mono text-slate-500 text-[10px]">{log.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

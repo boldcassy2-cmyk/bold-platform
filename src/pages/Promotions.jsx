@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function Promotions({ uploadedItems = [] }) {
+export default function Promotions({ uploadedItems = [], onTriggerCheckout, setCurrentPage, setActiveTxPayload }) {
+  // Mock fallback array
+  const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
+    { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
+    { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
+    { id: 'p3', title: 'Branded Merchant Corporate Apparel', type: 'product', price: 15000, category: 'fashion' }
+  ];
+
   // Asset Management States
-  const [selectedItemId, setSelectedItemId] = useState(null);
+  const [selectedItemId, setSelectedItemId] = useState(defaultItemsList[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Budget Matrix States
-  const [dailyBudget, setDailyBudget] = useState(5000); // Default N5,000 per day
-  const [campaignDays, setCampaignDays] = useState(7);   // Default 7-day duration
-  const [adPlacement, setAdPlacement] = useState('trending'); // Placement node tier
+  const [dailyBudget, setDailyBudget] = useState(5000); 
+  const [campaignDays, setCampaignDays] = useState(7);   
+  const [adPlacement, setAdPlacement] = useState('trending'); 
   
   // Real-time Traffic Multiplier Matrix
   const placementMultipliers = {
@@ -17,20 +24,23 @@ export default function Promotions({ uploadedItems = [] }) {
     broadcast: { name: 'Direct Push Notification Broadcast', multiplier: 45, conversions: 0.08 }
   };
 
-  // Mock fallback array to protect frontend layout rendering if props are initially empty
-  const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
-    { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
-    { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
-    { id: 'p3', title: 'Branded Merchant Corporate Apparel', type: 'product', price: 15000, category: 'fashion' }
-  ];
+  // Load Paystack script dynamically if not present
+  useEffect(() => {
+    if (!document.getElementById('paystack-script')) {
+      const script = document.createElement('script');
+      script.id = 'paystack-script';
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   // Filter items based on user search string
   const filteredItems = defaultItemsList.filter(item => 
     item.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Track currently active chosen asset configuration
-  const selectedAsset = defaultItemsList.find(item => item.id === selectedItemId);
+  const selectedAsset = defaultItemsList.find(item => item.id === selectedItemId) || defaultItemsList[0];
 
   // Math Formulations
   const activePlacement = placementMultipliers[adPlacement];
@@ -38,14 +48,79 @@ export default function Promotions({ uploadedItems = [] }) {
   const estimatedImpressions = dailyBudget * activePlacement.multiplier * campaignDays;
   const estimatedClicks = Math.floor(estimatedImpressions * activePlacement.conversions);
 
+  // Paystack Payment Gate Integration
   const handleLaunchCampaign = () => {
-    if (!selectedItemId) return;
-    alert(`Campaign initiated securely for "${selectedAsset.title}"! Total billing matrix of ₦${totalInvestment.toLocaleString()} allocated to escrow verification.`);
+    const currentAssetTitle = selectedAsset ? selectedAsset.title : 'Selected Item';
+    const computedTotal = dailyBudget * campaignDays;
+    
+    // Check if Paystack script is loaded in window
+    if (typeof window.PaystackPop === 'undefined') {
+      alert('Paystack gateway is still initializing. Please check your network connection and try again.');
+      return;
+    }
+
+    // Initialize Paystack Popup Transaction with your live key
+    const handler = window.PaystackPop.setup({
+      key: 'pk_live_0c84f6825e054064023e208a41e1f3ad34cf0f2d', 
+      email: 'merchant@bold.ng', 
+      amount: computedTotal * 100, // Paystack expects amount in kobo (Naira * 100)
+      currency: 'NGN',
+      ref: 'PROMO-' + Math.floor(100000 + Math.random() * 900000),
+      metadata: {
+        custom_fields: [
+          {
+            display_name: "Target Asset",
+            variable_name: "target_asset",
+            value: currentAssetTitle
+          },
+          {
+            display_name: "Ad Placement",
+            variable_name: "ad_placement",
+            value: activePlacement.name
+          }
+        ]
+      },
+      callback: function(response) {
+        // Payment successful callback handler
+        const campaignPayload = {
+          id: response.reference,
+          title: `Campaign Initiated for "${currentAssetTitle}"! Total billing matrix of ₦${computedTotal.toLocaleString()} verified via Paystack escrow`,
+          amount: computedTotal,
+          price: computedTotal,
+          category: 'Promotion',
+          quantity: 1,
+          status: 'In Escrow Vault',
+          date: new Date().toISOString().split('T')[0],
+          paystackRef: response.reference,
+          promotionSettings: {
+            targetAsset: currentAssetTitle,
+            adPlacement: activePlacement.name,
+            dailyBudget,
+            campaignDays
+          }
+        };
+
+        console.log(`[Paystack Success] Reference: ${response.reference}`);
+
+        if (typeof onTriggerCheckout === 'function') {
+          onTriggerCheckout(campaignPayload);
+        } else if (typeof setActiveTxPayload === 'function' && typeof setCurrentPage === 'function') {
+          setActiveTxPayload(campaignPayload);
+          setCurrentPage('escrow-checkout');
+        } else {
+          alert(`Payment verified successfully! Campaign for "${currentAssetTitle}" active with reference: ${response.reference}`);
+        }
+      },
+      onClose: function() {
+        console.log('[Paystack] Payment window closed by user.');
+      }
+    });
+
+    handler.openIframe();
   };
 
   return (
     <main className="max-w-5xl mx-auto my-6 px-4 space-y-6 animate-fadeIn text-white text-left">
-      
       {/* HEADER PLATFORM CARD */}
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -53,7 +128,7 @@ export default function Promotions({ uploadedItems = [] }) {
             📈 BOLD ACCELERATION ENGINE
           </span>
           <h1 className="text-2xl font-black text-white mt-1">Merchant Promotions Hub</h1>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Scale your product visibility node across the entire marketplace stream instantly.</p>
+          <p className="text-slate-400 text-xs mt-0.5 font-medium">Scale your product visibility node across the entire marketplace stream instantly via secure escrow.</p>
         </div>
       </div>
 
@@ -65,7 +140,6 @@ export default function Promotions({ uploadedItems = [] }) {
             <p className="text-xs text-slate-400">Choose the specific uploaded product or service for this marketing campaign node.</p>
           </div>
           
-          {/* SEARCH FIELD BAR */}
           <input 
             type="text"
             placeholder="Search items..."
@@ -75,7 +149,6 @@ export default function Promotions({ uploadedItems = [] }) {
           />
         </div>
 
-        {/* INTERACTIVE ITEM STREAM GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
           {filteredItems.map((item) => {
             const isSelected = selectedItemId === item.id;
@@ -89,7 +162,6 @@ export default function Promotions({ uploadedItems = [] }) {
                     : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
                 }`}
               >
-                {/* FLOATING TYPE BADGE */}
                 <span className={`absolute top-2 right-2 text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded ${
                   item.type === 'service' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
                 }`}>
@@ -97,7 +169,7 @@ export default function Promotions({ uploadedItems = [] }) {
                 </span>
 
                 <div className="pr-12">
-                  <h4 className="text-xs font-bold line-clamp-2 text-slate-100 group-hover:text-white">
+                  <h4 className="text-xs font-bold line-clamp-2 text-slate-100">
                     {item.title}
                   </h4>
                   <p className="text-[#FF5A00] font-mono text-xs font-bold mt-2">
@@ -105,7 +177,6 @@ export default function Promotions({ uploadedItems = [] }) {
                   </p>
                 </div>
 
-                {/* VISUAL SELECTION STATUS NOTIFIER */}
                 <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
                   <span className="capitalize text-[9px] text-slate-500">Hub: {item.category || 'General'}</span>
                   {isSelected ? (
@@ -125,13 +196,12 @@ export default function Promotions({ uploadedItems = [] }) {
       {/* STEP 2 & DETAILS DISPLAY MATRIX CONTAINER */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
-        {/* LEFT COLUMN: INTERACTIVE CONTROLS */}
+        {/* LEFT COLUMN: CONTROLS */}
         <div className="lg:col-span-7 bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
           <h3 className="text-base font-black tracking-tight border-b border-slate-800 pb-3">
             ⚙️ Step 2: Campaign Parameter Configuration
           </h3>
 
-          {/* SLIDER 1: DAILY BUDGET */}
           <div className="space-y-2">
             <div className="flex justify-between items-center text-xs font-bold">
               <label className="text-slate-300 uppercase tracking-wide text-[10px]">Daily Capital Allocation</label>
@@ -146,14 +216,8 @@ export default function Promotions({ uploadedItems = [] }) {
               onChange={(e) => setDailyBudget(Number(e.target.value))}
               className="w-full accent-[#FF5A00] bg-[#0B132B] h-2 rounded-lg cursor-pointer appearance-none"
             />
-            <div className="flex justify-between text-[9px] text-slate-500 font-semibold font-mono">
-              <span>₦1,000</span>
-              <span>₦25,000</span>
-              <span>₦50,000</span>
-            </div>
           </div>
 
-          {/* SLIDER 2: DURATION */}
           <div className="space-y-2">
             <div className="flex justify-between items-center text-xs font-bold">
               <label className="text-slate-300 uppercase tracking-wide text-[10px]">Campaign Timeline Run</label>
@@ -168,62 +232,47 @@ export default function Promotions({ uploadedItems = [] }) {
               onChange={(e) => setCampaignDays(Number(e.target.value))}
               className="w-full accent-[#FF5A00] bg-[#0B132B] h-2 rounded-lg cursor-pointer appearance-none"
             />
-            <div className="flex justify-between text-[9px] text-slate-500 font-semibold font-mono">
-              <span>1 Day</span>
-              <span>15 Days</span>
-              <span>30 Days</span>
-            </div>
           </div>
 
-          {/* SELECT PLACEMENT TIER */}
           <div className="space-y-2">
             <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
               Premium Placement Optimization Node
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              
-              {/* TIER 1 */}
               <div 
                 onClick={() => setAdPlacement('sidebar')}
                 className={`p-4 rounded-xl border text-center cursor-pointer transition select-none ${
-                  adPlacement === 'sidebar' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
+                  adPlacement === 'sidebar' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800'
                 }`}
               >
                 <p className="text-base">📋</p>
                 <p className="text-[11px] font-black uppercase mt-1">Sidebar Feed</p>
-                <p className="text-[9px] text-slate-400 font-medium mt-0.5">Standard Traffic</p>
               </div>
 
-              {/* TIER 2 */}
               <div 
                 onClick={() => setAdPlacement('trending')}
                 className={`p-4 rounded-xl border text-center cursor-pointer transition select-none ${
-                  adPlacement === 'trending' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
+                  adPlacement === 'trending' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800'
                 }`}
               >
                 <p className="text-base">🔥</p>
                 <p className="text-[11px] font-black uppercase mt-1">Trending Ribbon</p>
-                <p className="text-[9px] text-slate-400 font-medium mt-0.5">High Exposure</p>
               </div>
 
-              {/* TIER 3 */}
               <div 
                 onClick={() => setAdPlacement('broadcast')}
                 className={`p-4 rounded-xl border text-center cursor-pointer transition select-none ${
-                  adPlacement === 'broadcast' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
+                  adPlacement === 'broadcast' ? 'bg-[#FF5A00]/10 border-[#FF5A00]' : 'bg-[#0B132B] border-slate-800'
                 }`}
               >
                 <p className="text-base">⚡</p>
                 <p className="text-[11px] font-black uppercase mt-1">Direct Push</p>
-                <p className="text-[9px] text-slate-400 font-medium mt-0.5">Max Conversion</p>
               </div>
-
             </div>
           </div>
-
         </div>
 
-        {/* RIGHT COLUMN: LIVE ESTIMATE FEEDBACK */}
+        {/* RIGHT COLUMN: METRICS & LAUNCH BUTTON */}
         <div className="lg:col-span-5 bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-6">
           <div>
             <h3 className="text-base font-black tracking-tight border-b border-slate-800 pb-3">
@@ -231,75 +280,50 @@ export default function Promotions({ uploadedItems = [] }) {
             </h3>
             
             <div className="mt-4 space-y-4">
-              {/* SELECTED TARGET NODE CONFIRMATION TILE */}
               <div className="bg-[#0B132B] p-3 rounded-xl border border-dashed border-slate-800">
                 <span className="text-[9px] text-slate-400 font-black uppercase block mb-1">Target Engine Lock</span>
-                {selectedAsset ? (
-                  <div>
-                    <span className="text-xs font-bold text-white line-clamp-1">{selectedAsset.title}</span>
-                    <span className="text-[10px] font-mono text-[#FF5A00] block mt-0.5">₦{Number(selectedAsset.price).toLocaleString()}</span>
-                  </div>
-                ) : (
-                  <span className="text-xs font-medium text-amber-500 flex items-center gap-1.5 animate-pulse">
-                    ⚠️ No asset selected yet
-                  </span>
-                )}
+                <span className="text-xs font-bold text-white line-clamp-1">{selectedAsset?.title}</span>
               </div>
 
-              {/* INSIGHT 1: IMPRESSIONS */}
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
                 <div>
                   <span className="text-[9px] text-slate-400 font-black uppercase block">Estimated Views</span>
                   <span className="text-xs font-semibold text-slate-300 font-mono">{activePlacement.name}</span>
                 </div>
-                <span className="text-xl font-black text-white font-mono">
-                  {estimatedImpressions.toLocaleString()}+
-                </span>
+                <span className="text-xl font-black text-white font-mono">{estimatedImpressions.toLocaleString()}+</span>
               </div>
 
-              {/* INSIGHT 2: CLICKS */}
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
                 <div>
                   <span className="text-[9px] text-slate-400 font-black uppercase block">Target Clicks</span>
-                  <span className="text-xs font-semibold text-slate-300 font-mono">Based on conversion index</span>
+                  <span className="text-xs font-semibold text-slate-300 font-mono">Conversion index</span>
                 </div>
-                <span className="text-xl font-black text-emerald-400 font-mono">
-                  ≈ {estimatedClicks.toLocaleString()}
-                </span>
+                <span className="text-xl font-black text-emerald-400 font-mono">≈ {estimatedClicks.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* TOTAL INVOICE AND DEPLOYMENT */}
           <div className="pt-4 border-t border-slate-800 space-y-3">
             <div className="flex justify-between items-baseline">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Investment:</span>
-              <span className="text-2xl font-black text-[#FF5A00] font-mono">
-                ₦{totalInvestment.toLocaleString()}
-              </span>
+              <span className="text-2xl font-black text-[#FF5A00] font-mono">₦{totalInvestment.toLocaleString()}</span>
             </div>
             
             <button 
               type="button"
-              disabled={!selectedItemId}
               onClick={handleLaunchCampaign}
-              className={`w-full font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none shadow-lg transition duration-200 ${
-                selectedItemId 
-                  ? 'bg-[#FF5A00] text-white cursor-pointer hover:brightness-110' 
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-              }`}
+              className="w-full bg-[#FF5A00] hover:brightness-110 text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none shadow-lg cursor-pointer transition duration-200"
             >
-              {selectedItemId ? '🚀 Launch Advertising Campaign' : '❌ Select an asset to unlock'}
+              🚀 Pay & Launch Campaign (Paystack)
             </button>
             <span className="text-[9px] text-slate-500 font-medium block text-center">
-              Campaign ad matrices update across live nodes within 60 seconds of processing confirmation.
+              Secured by Paystack Escrow Gateway. Funds lock safely until milestone fulfillment.
             </span>
           </div>
 
         </div>
 
       </div>
-
     </main>
   );
 }

@@ -5,7 +5,19 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
   const currentUser = auth?.currentUser;
   const [loading, setLoading] = useState(false);
 
-  const totalAmountInNaira = cartItems.reduce((sum, item) => sum + (Number(item.price || 0) * (item.quantity || 1)), 0);
+  // Helper to safely parse numbers, strings with commas, and currency symbols
+  const parsePrice = (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[^0-9.-]+/g, "");
+    return Number(cleaned) || 0;
+  };
+
+  const totalAmountInNaira = cartItems.reduce((sum, item) => {
+    const unitPrice = parsePrice(item.price);
+    const quantity = Number(item.quantity || 1);
+    return sum + (unitPrice * quantity);
+  }, 0);
 
   const handlePaystackPayment = () => {
     if (cartItems.length === 0) {
@@ -13,11 +25,9 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
       return;
     }
 
-    // Replace with your actual Paystack Public Key (pk_test_... or pk_live_...)
     const publicKey = "pk_live_0c84f6825e054064023e208a41e1f3ad34cf0f2d";
-    const amountInKobo = totalAmountInNaira * 100;
+    const amountInKobo = Math.round(totalAmountInNaira * 100);
 
-    // Verify Paystack SDK is available on window
     if (!window.PaystackPop) {
       alert("Paystack SDK failed to load. Please check your internet connection or ad blocker.");
       return;
@@ -44,12 +54,10 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
         setLoading(false);
         console.log("Payment complete! Reference: ", response.reference);
         
-        // Build concise title summary from items
         const itemSummary = cartItems.length === 1 
           ? `${cartItems[0].title} (x${cartItems[0].quantity || 1})`
           : `${cartItems.length} items bundle (${cartItems[0]?.title || 'Multi-item'})`;
 
-        // Pass confirmed payment payload back to App state
         onConfirmPayment({
           id: response.reference || ('TX-' + Math.floor(1000 + Math.random() * 9000)),
           title: itemSummary,
@@ -90,20 +98,26 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
         <div className="space-y-3">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Checkout Items</h3>
           <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-            {cartItems.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-[#0B132B] p-4 rounded-2xl border border-slate-800/80">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{item.img || '📦'}</span>
-                  <div>
-                    <h4 className="font-bold text-sm text-white">{item.title}</h4>
-                    <p className="text-[11px] text-slate-400">Qty: {item.quantity || 1} | {item.location || 'Lagos Hub'}</p>
+            {cartItems.map((item, idx) => {
+              const unitPrice = parsePrice(item.price);
+              const qty = Number(item.quantity || 1);
+              const lineTotal = unitPrice * qty;
+
+              return (
+                <div key={idx} className="flex justify-between items-center bg-[#0B132B] p-4 rounded-2xl border border-slate-800/80">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{item.img || '📦'}</span>
+                    <div>
+                      <h4 className="font-bold text-sm text-white">{item.title}</h4>
+                      <p className="text-[11px] text-slate-400">Qty: {qty} | {item.location || 'Lagos Hub'}</p>
+                    </div>
                   </div>
+                  <span className="font-mono font-black text-[#FF5A00]">
+                    ₦{lineTotal.toLocaleString()}
+                  </span>
                 </div>
-                <span className="font-mono font-black text-[#FF5A00]">
-                  ₦{(Number(item.price || 0) * (item.quantity || 1)).toLocaleString()}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -122,7 +136,7 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
         <button
           type="button"
           onClick={handlePaystackPayment}
-          disabled={loading || cartItems.length === 0}
+          disabled={loading || cartItems.length === 0 || totalAmountInNaira === 0}
           className="w-full bg-[#FF5A00] hover:bg-[#e05000] text-white font-black py-4 rounded-2xl transition-all shadow-[0_4px_20px_rgba(255,90,0,0.4)] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
         >
           {loading ? (
