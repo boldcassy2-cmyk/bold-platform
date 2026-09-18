@@ -20,6 +20,7 @@ const EscrowProcessor = lazy(() => import('./pages/EscrowProcessor'));
 const EscrowCheckout = lazy(() => import('./pages/EscrowCheckout'));
 const CartSummaryPage = lazy(() => import('./pages/CartSummaryPage'));
 const ProductCatalogForm = lazy(() => import('./pages/ProductCatalogForm'));
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
 
 // Portal & Informational Views (Footer Navigation)
 const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
@@ -272,7 +273,7 @@ export default function App() {
     { id: 'home', label: '🏠 Home' },
     { id: 'marketplace', label: '🛒 Discover Stores' },
     { id: 'addproduct', label: '➕ Add Product' },
-    { id: 'dashboard', label: '📊 Dashboard' },
+    { id: 'dashboard', label: currentUser && userRole !== 'USER' ? '📊 Dashboard' : '👤 My Account' },
     { id: 'promotions', label: '📈 Promotions' },
     { id: 'escrow', label: '🛡️ Escrow Vault' },
   ];
@@ -304,6 +305,18 @@ export default function App() {
         />
       );
     }
+    
+    // Explicitly route general buyers and regular users to their customer hub
+    if (userRole === 'USER' || userDepartment === 'general') {
+      return (
+        <CustomerDashboard 
+          user={currentUser}
+          orders={globalTransactions}
+          setCurrentPage={setCurrentPage}
+        />
+      );
+    }
+
     return (
       <RoleGuard userDepartment={userDepartment} allowedDepartments={['finance', 'inspection', 'support', 'delivery', 'admin']}>
         <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
