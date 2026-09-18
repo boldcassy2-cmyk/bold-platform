@@ -1,10 +1,55 @@
 import React, { useState } from 'react';
 
-export default function CeoDashboard({ transactions = [], setTransactions, items = [], usersList = [], staffLogs = [], userRole }) {
+export default function CeoDashboard({ transactions = [], setTransactions, items = [], usersList = [], setUsersList, staffLogs = [], userRole }) {
   const [activeTab, setActiveTab] = useState('overview');
+
+  // New Staff Form States
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffDepartment, setNewStaffDepartment] = useState('finance');
+  const [staffCreationStatus, setStaffCreationStatus] = useState(null);
 
   const totalVolume = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
   const activeEscrowCount = transactions.filter(tx => tx.status === 'In Escrow Vault').length;
+
+  const handleCreateStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffEmail || !newStaffName) return;
+
+    const newStaffMember = {
+      id: 'usr-' + Date.now(),
+      name: newStaffName,
+      email: newStaffEmail,
+      role: 'STAFF',
+      department: newStaffDepartment,
+      status: 'Active',
+      idCardStatus: 'Pending', // ID card tracking status
+      dateAdded: new Date().toISOString()
+    };
+
+    if (typeof setUsersList === 'function') {
+      setUsersList(prev => [newStaffMember, ...prev]);
+    } else {
+      usersList.unshift(newStaffMember);
+    }
+
+    setStaffCreationStatus(`Successfully provisioned account for ${newStaffName} (${newStaffDepartment.toUpperCase()})`);
+    setNewStaffEmail('');
+    setNewStaffName('');
+    setTimeout(() => setStaffCreationStatus(null), 4000);
+  };
+
+  const toggleIdCardStatus = (index) => {
+    if (typeof setUsersList === 'function') {
+      setUsersList(prev => prev.map((usr, i) => {
+        if (i === index) {
+          const nextStatus = usr.idCardStatus === 'Issued' ? 'Pending' : 'Issued';
+          return { ...usr, idCardStatus: nextStatus };
+        }
+        return usr;
+      }));
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
@@ -156,34 +201,119 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
         )}
 
         {activeTab === 'hr' && (
-          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-lg font-black text-white">👥 Human Resources & Staff Directory</h2>
-            <p className="text-xs text-slate-400">Review staff accounts, department clearances, and role assignments.</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
-                  <tr>
-                    <th className="p-3">Staff / Merchant Name</th>
-                    <th className="p-3">Email</th>
-                    <th className="p-3">Role</th>
-                    <th className="p-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {usersList.map((usr, idx) => (
-                    <tr key={idx} className="hover:bg-slate-900/40">
-                      <td className="p-3 font-bold text-white">{usr.name}</td>
-                      <td className="p-3 font-mono">{usr.email}</td>
-                      <td className="p-3">
-                        <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                          {usr.role}
-                        </span>
-                      </td>
-                      <td className="p-3 text-emerald-400 font-bold">{usr.status}</td>
+          <div className="space-y-6">
+            {/* Provision Staff Card */}
+            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <div>
+                <h3 className="text-lg font-black text-white">⚡ Provision New Staff Account</h3>
+                <p className="text-xs text-slate-400">Create operational credentials and assign departmental clearance.</p>
+              </div>
+
+              {staffCreationStatus && (
+                <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs px-4 py-3 rounded-xl">
+                  {staffCreationStatus}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateStaff} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Staff Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. John Doe"
+                    value={newStaffName} 
+                    onChange={(e) => setNewStaffName(e.target.value)}
+                    required
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Email Address</label>
+                  <input 
+                    type="email" 
+                    placeholder="staff@bold.ng"
+                    value={newStaffEmail} 
+                    onChange={(e) => setNewStaffEmail(e.target.value)}
+                    required
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1">Department Scope</label>
+                  <select 
+                    value={newStaffDepartment} 
+                    onChange={(e) => setNewStaffDepartment(e.target.value)}
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                  >
+                    <option value="finance">Finance Vault</option>
+                    <option value="inspection">Inspection Hub</option>
+                    <option value="support">Customer Support</option>
+                    <option value="delivery">Logistics & Delivery</option>
+                    <option value="admin">Executive Admin</option>
+                  </select>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="bg-[#FF5A00] hover:bg-[#e05000] text-white text-xs font-black px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                >
+                  Create Account 🚀
+                </button>
+              </form>
+            </div>
+
+            {/* Staff Directory Table with ID Card Tracking */}
+            <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
+              <h2 className="text-lg font-black text-white">👥 Human Resources & Staff ID Card Directory</h2>
+              <p className="text-xs text-slate-400">Review staff accounts, department clearances, and click ID status to toggle issuance.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
+                    <tr>
+                      <th className="p-3">Staff Name</th>
+                      <th className="p-3">Email</th>
+                      <th className="p-3">Role & Dept</th>
+                      <th className="p-3">ID Card Status</th>
+                      <th className="p-3">Account Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {usersList.map((usr, idx) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="p-3 font-bold text-white">{usr.name}</td>
+                        <td className="p-3 font-mono">{usr.email}</td>
+                        <td className="p-3 flex items-center gap-2">
+                          <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                            {usr.role}
+                          </span>
+                          {usr.department && (
+                            <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-mono">
+                              {usr.department.toUpperCase()}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleIdCardStatus(idx)}
+                            title="Click to toggle ID card status"
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer transition-colors ${
+                              usr.idCardStatus === 'Issued'
+                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800 hover:bg-emerald-900'
+                                : 'bg-amber-950 text-amber-400 border-amber-800 hover:bg-amber-900'
+                            }`}
+                          >
+                            {usr.idCardStatus || 'Pending'} 🪪
+                          </button>
+                        </td>
+                        <td className="p-3 text-emerald-400 font-bold">{usr.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

@@ -77,7 +77,7 @@ export default function StaffLoginModal({ isOpen, onClose, onLoginSuccess }) {
             className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer shadow-lg shadow-orange-600/20"
           >
             Authenticate & Open Admin Portal
-          </button>
+          </button> 
         </form>
 
         <div className="text-[10px] text-slate-500 text-center">

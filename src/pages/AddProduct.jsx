@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -12,9 +12,11 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
   const [specification, setSpecification] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [user, setUser] = useState(auth.currentUser);
+  const [isPending, startTransition] = useTransition();
 
   // Listen for Firebase auth state to ensure user is fully loaded
   useEffect(() => {
@@ -40,9 +42,6 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'Bold_ng_page';
 
-    console.log("🔍 [Cloudinary Debug] Cloud Name:", cloudName);
-    console.log("🔍 [Cloudinary Debug] Upload Preset:", uploadPreset);
-
     if (!cloudName || cloudName === "your_actual_cloud_name") {
       throw new Error("Missing or placeholder Cloud Name! Update VITE_CLOUDINARY_CLOUD_NAME in your .env file and restart Vite.");
     }
@@ -52,9 +51,6 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
     formData.append("upload_preset", uploadPreset);
 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-    console.log("🚀 [Cloudinary Debug] Sending POST request to:", uploadUrl);
-
-    // Create an AbortController to force-fail if network hangs for more than 12 seconds
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
 
@@ -70,8 +66,6 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
       setUploadStatus('Processing secure asset...');
 
       const data = await response.json();
-      console.log("📥 [Cloudinary Debug] Response received:", data);
-
       if (data.secure_url) {
         return data.secure_url;
       } else {
@@ -79,20 +73,16 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
       }
     } catch (netError) {
       clearTimeout(timeoutId);
-      console.error("❌ [Cloudinary Network Error]:", netError);
-
       if (netError.name === 'AbortError') {
-        throw new Error("Upload timed out after 12s. Your browser adblocker, Brave Shields, or firewall is blocking Cloudinary. Please turn off adblockers for localhost or paste a direct image URL below.");
+        throw new Error("Upload timed out after 12s. Check your adblocker or firewall settings.");
       }
-
-      throw new Error(`Image upload failed: ${netError.message}. Check your internet connection or adblocker.`);
+      throw new Error(`Image upload failed: ${netError.message}`);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 1. Validate auth with state listener
     const activeUser = user || auth.currentUser;
     if (!activeUser) {
       alert("Security Error: Authentication session not detected. Please refresh or log in again.");
@@ -107,53 +97,66 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
 
     setIsSubmitting(true);
 
-    try {
-      let finalImageUrl = imageUrl.trim();
+    // Create optimistic mock ID and payload for immediate render
+    const tempId = 'item-' + Date.now();
+    const fallbackImage = imageUrl.trim() || getCategoryEmoji(category);
 
-      // 2. If a local image file was chosen, upload to Cloudinary first
-      if (imageFile) {
-        setUploadStatus('Uploading image to Cloudinary...');
-        finalImageUrl = await uploadToCloudinary(imageFile);
-      }
+    const productPayload = {
+      title: title.trim(),
+      price: parsedPrice,
+      category,
+      location,
+      vendorName: vendorName.trim(),
+      merchantId: activeUser.uid,
+      meta: `Vendor: ${vendorName.trim()} • ${specification.trim() || 'Verified Genuine Escrow Stock'}`,
+      img: fallbackImage,
+      status: 'AVAILABLE',
+      createdAt: serverTimestamp(),
+    };
 
-      setUploadStatus('Publishing asset to Firestore...');
+    const optimisticProduct = {
+      id: tempId,
+      ...productPayload,
+      createdAt: new Date().toISOString(),
+    };
 
-      const productPayload = {
-        title: title.trim(),
-        price: parsedPrice,
-        category,
-        location,
-        vendorName: vendorName.trim(),
-        merchantId: activeUser.uid,
-        meta: `Vendor: ${vendorName.trim()} • ${specification.trim() || 'Verified Genuine Escrow Stock'}`,
-        img: finalImageUrl || getCategoryEmoji(category),
-        status: 'AVAILABLE',
-        createdAt: serverTimestamp(),
-      };
-
-      // 3. Add document to Firestore inventory collection
-      const docRef = await addDoc(collection(db, 'inventory'), productPayload);
-
-      const publishedProduct = {
-        id: docRef.id,
-        ...productPayload,
-        createdAt: new Date().toISOString(),
-      };
-
+    // 1. INSTANT UI UPDATE (Optimistic execution)
+    startTransition(() => {
       if (typeof onAddProduct === 'function') {
-        onAddProduct(publishedProduct);
+        onAddProduct(optimisticProduct);
       }
-
       if (typeof setCurrentPage === 'function') {
         setCurrentPage('marketplace');
       }
-    } catch (error) {
-      console.error("Upload Error:", error);
-      alert(`Upload blocked: ${error.message || 'Unknown network error'}`);
-    } finally {
-      setIsSubmitting(false);
-      setUploadStatus('');
-    }
+    });
+
+    // 2. Execute Cloudinary upload & Firestore write in background without freezing UI
+    (async () => {
+      try {
+        let finalImageUrl = fallbackImage;
+
+        if (imageFile) {
+          setUploadStatus('Uploading image to Cloudinary...');
+          finalImageUrl = await uploadToCloudinary(imageFile);
+        }
+
+        setUploadStatus('Syncing with Firestore...');
+        
+        // Update payload with real cloudinary image if uploaded
+        const finalPayload = {
+          ...productPayload,
+          img: finalImageUrl
+        };
+
+        await addDoc(collection(db, 'inventory'), finalPayload);
+        console.log("⚡ [Background Sync] Product successfully written to database.");
+      } catch (error) {
+        console.error("Background Sync Error:", error);
+      } finally {
+        setIsSubmitting(false);
+        setUploadStatus('');
+      }
+    })();
   };
 
   return (
@@ -284,12 +287,8 @@ export default function AddProduct({ setCurrentPage, onAddProduct }) {
         <div className="pt-2">
           <button 
             type="submit"
-            disabled={isSubmitting}
-            className={`w-full text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl border-none transition cursor-pointer shadow-lg ${
-              isSubmitting 
-                ? 'bg-slate-700 cursor-not-allowed animate-pulse' 
-                : 'bg-[#FF5A00] hover:brightness-110'
-            }`}
+            disabled={isSubmitting && isPending}
+            className="w-full text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl border-none transition cursor-pointer shadow-lg bg-[#FF5A00] hover:brightness-110"
           >
             {isSubmitting ? `⚡ ${uploadStatus || 'Publishing Asset...'}` : '🚀 Publish Secure Escrow Asset'}
           </button>

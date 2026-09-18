@@ -100,7 +100,7 @@ export default function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setIsMobileMenuOpen(false); // Close mobile drawer on page change
+    setIsMobileMenuOpen(false);
   }, [currentPage]);
 
   // Dynamic Authentication & Firestore Role/Department Synchronizer
@@ -133,7 +133,6 @@ export default function App() {
             setUserDepartment('general');
           }
         } catch (error) {
-          console.error('Error fetching user clearance:', error);
           setUserRole('USER');
           setUserDepartment('general');
         }
@@ -301,6 +300,7 @@ export default function App() {
           usersList={globalUsersList}
           staffLogs={globalStaffActions}
           userRole={userRole}
+          onNavigate={setCurrentPage}
         />
       );
     }
@@ -321,9 +321,9 @@ export default function App() {
       case 'store':
         return renderDashboardByRole();
       case 'promotions':
-        return <Promotions uploadedItems={globalItems} />;
+        return <Promotions uploadedItems={globalItems} onNavigate={setCurrentPage} />;
       case 'escrow':
-        return <EscrowTracker transactions={globalTransactions} />;
+        return <EscrowTracker transactions={globalTransactions} onNavigate={setCurrentPage} />;
       case 'escrow-dashboard':
         return (
           <RoleGuard userDepartment={userDepartment} allowedDepartments={['finance', 'inspection', 'support', 'delivery', 'admin']}>
@@ -340,6 +340,7 @@ export default function App() {
                 usersList={globalUsersList}
                 staffLogs={globalStaffActions}
                 userRole={userRole}
+                onNavigate={setCurrentPage}
               />
             )
           : <Home setCurrentPage={setCurrentPage} />;
