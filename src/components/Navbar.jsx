@@ -51,9 +51,17 @@ export default function Navbar({ currentPage, setCurrentPage }) {
         <button 
           onClick={() => setCurrentPage('home')} 
           className="text-2xl font-black tracking-wider text-white bg-transparent border-none cursor-pointer outline-none shrink-0"
+
         >
+
           BOLD<span className="text-[#FF5A00]">.ng</span>
         </button>
+        <button 
+  onClick={() => onNavigate('admin-activity')}
+  className="text-xs bg-[#FF5A00] text-white px-3 py-2 rounded-xl font-bold"
+>
+  👑 CEO Activity Monitor
+</button>
         
         {/* All 10 Navigation Links */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">

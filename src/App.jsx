@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { db, auth } from './firebase'; 
-import { collection, onSnapshot, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // Core UI Components
@@ -21,6 +21,8 @@ const EscrowCheckout = lazy(() => import('./pages/EscrowCheckout'));
 const CartSummaryPage = lazy(() => import('./pages/CartSummaryPage'));
 const ProductCatalogForm = lazy(() => import('./pages/ProductCatalogForm'));
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
+const DirectVendorListing = lazy(() => import('./pages/DirectVendorListing'));
+const AdminActivityMonitor = lazy(() => import('./pages/AdminActivityMonitor'));
 
 // Portal & Informational Views (Footer Navigation)
 const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
@@ -93,6 +95,28 @@ export default function App() {
     whatsapp: '08000000000'
   });
 
+  // Professional Telemetry Logger
+  const logAppActivity = useCallback(async (user, actionType, details = {}) => {
+    try {
+      if (!db) return;
+      await addDoc(collection(db, 'app_telemetry'), {
+        userId: user?.uid || 'anonymous',
+        email: user?.email || 'guest',
+        action: actionType, // 'PAGE_VIEW', 'USER_LOGIN', 'USER_LOGOUT', 'ADD_TO_CART', 'CHECKOUT_INITIATE', 'CHECKOUT_ABANDONMENT', 'CHECKOUT_FAIL', 'CHECKOUT_SUCCESS'
+        details,
+        timestamp: serverTimestamp(),
+        clientLocalDateTime: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Telemetry Logging Error:", error);
+    }
+  }, []);
+
+  // Track Page Views automatically
+  useEffect(() => {
+    logAppActivity(currentUser, 'PAGE_VIEW', { page: currentPage });
+  }, [currentPage, currentUser, logAppActivity]);
+
   useEffect(() => {
     try {
       localStorage.setItem('bold_cart_items', JSON.stringify(cartItems));
@@ -104,7 +128,7 @@ export default function App() {
     setIsMobileMenuOpen(false);
   }, [currentPage]);
 
-  // Dynamic Authentication & Firestore Role/Department Synchronizer
+  // Dynamic Authentication & Firestore Role/Department Synchronizer with Telemetry
   useEffect(() => {
     if (!auth) {
       setLoading(false);
@@ -118,6 +142,7 @@ export default function App() {
         if (user.email && CEO_EMAILS.includes(user.email.toLowerCase())) {
           setUserRole('CEO');
           setUserDepartment('admin');
+          logAppActivity(user, 'USER_LOGIN', { role: 'CEO', department: 'admin' });
           setLoading(false);
           return;
         }
@@ -127,15 +152,20 @@ export default function App() {
           const userSnapshot = await getDoc(userDocRef);
           if (userSnapshot.exists()) {
             const data = userSnapshot.data();
-            setUserRole(data?.role?.toUpperCase() || 'USER');
-            setUserDepartment(data?.department?.toLowerCase() || 'general');
+            const fetchedRole = data?.role?.toUpperCase() || 'USER';
+            const fetchedDept = data?.department?.toLowerCase() || 'general';
+            setUserRole(fetchedRole);
+            setUserDepartment(fetchedDept);
+            logAppActivity(user, 'USER_LOGIN', { role: fetchedRole, department: fetchedDept });
           } else {
             setUserRole('USER');
             setUserDepartment('general');
+            logAppActivity(user, 'USER_LOGIN', { role: 'USER', department: 'general' });
           }
         } catch (error) {
           setUserRole('USER');
           setUserDepartment('general');
+          logAppActivity(user, 'USER_LOGIN', { role: 'USER', error: 'Role fetch fallback' });
         }
       } else {
         setUserRole('USER');
@@ -145,15 +175,18 @@ export default function App() {
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [logAppActivity]);
 
   const handleLogout = async () => {
     try {
+      await logAppActivity(currentUser, 'USER_LOGOUT');
       if (auth) await signOut(auth);
       setUserRole('USER');
       setUserDepartment('general');
       setCurrentPage('home');
-    } catch (error) {}
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   const sortInventoryPriorities = (items) => {
@@ -228,6 +261,12 @@ export default function App() {
   }, []);
 
   const handleAddToCart = useCallback((product) => {
+    logAppActivity(currentUser, 'ADD_TO_CART', {
+      productId: product?.id || product?.docId,
+      productTitle: product?.title,
+      price: product?.price
+    });
+
     setCartItems((prevCart) => {
       const existingIndex = prevCart.findIndex((item) => item.id === product.id || item.docId === product.docId);
       if (existingIndex > -1) {
@@ -237,16 +276,31 @@ export default function App() {
       }
       return [...prevCart, { ...product, quantity: 1 }];
     });
-  }, []);
+  }, [currentUser, logAppActivity]);
 
   const totalCartCount = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [cartItems]);
 
   const handleTriggerCheckout = useCallback((itemContext) => {
+    logAppActivity(currentUser, 'CHECKOUT_INITIATE', {
+      item: itemContext?.title || 'Single Item Checkout',
+      price: itemContext?.price || 0
+    });
     setActiveTxPayload(itemContext ? { ...itemContext, quantity: itemContext.quantity || 1 } : null);
     setCurrentPage('escrow-checkout');
-  }, []);
+  }, [currentUser, logAppActivity]);
+
+  // Capture Checkout Abandonment / Failure
+  const handleCancelCheckout = useCallback(() => {
+    logAppActivity(currentUser, 'CHECKOUT_ABANDONMENT', {
+      itemsCount: cartItems.length,
+      activePayload: activeTxPayload ? activeTxPayload.title : null,
+      reason: 'User cancelled or dropped off at checkout'
+    });
+    setActiveTxPayload(null);
+    setCurrentPage(activeTxPayload ? 'marketplace' : 'cart');
+  }, [currentUser, cartItems, activeTxPayload, logAppActivity]);
 
   const handleAddNewProduct = async (newProductPayload) => {
     const cloudPayload = {
@@ -262,7 +316,9 @@ export default function App() {
       const firestorePromise = addDoc(collection(db, 'inventory'), cloudPayload);
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Sync Timeout')), 5000));
       await Promise.race([firestorePromise, timeoutPromise]);
+      logAppActivity(currentUser, 'PRODUCT_LIST_SUCCESS', { title: cloudPayload.title });
     } catch (error) {
+      logAppActivity(currentUser, 'PRODUCT_LIST_FAIL', { title: cloudPayload.title, error: error.message });
       setGlobalItems((prev) => sortInventoryPriorities([cloudPayload, ...prev]));
     } finally {
       setCurrentPage('marketplace');
@@ -276,6 +332,8 @@ export default function App() {
     { id: 'dashboard', label: currentUser && userRole !== 'USER' ? '📊 Dashboard' : '👤 My Account' },
     { id: 'promotions', label: '📈 Promotions' },
     { id: 'escrow', label: '🛡️ Escrow Vault' },
+    { id: 'direct-post', label: '📢 Post Direct Ad' },
+    { id: 'admin-monitor', label: '📡 Activity Monitor' },
   ];
 
   const FOOTER_NAV = [
@@ -289,6 +347,7 @@ export default function App() {
     { id: 'escrow-guidelines', label: 'Escrow Guidelines' },
     { id: 'telemetry', label: 'Security Telemetry' },
     { id: 'terms', label: 'Terms of Protocol' },
+    { id: 'admin-monitor', label: 'Admin Activity Monitor' },
   ];
 
   const renderDashboardByRole = () => {
@@ -306,7 +365,6 @@ export default function App() {
       );
     }
     
-    // Explicitly route general buyers and regular users to their customer hub
     if (userRole === 'USER' || userDepartment === 'general') {
       return (
         <CustomerDashboard 
@@ -341,6 +399,19 @@ export default function App() {
         return (
           <RoleGuard userDepartment={userDepartment} allowedDepartments={['finance', 'inspection', 'support', 'delivery', 'admin']}>
             <EscrowDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+          </RoleGuard>
+        );
+      case 'direct-post':
+        return (
+          <DirectVendorListing 
+            onAddListing={handleAddNewProduct} 
+            onNavigate={setCurrentPage} 
+          />
+        );
+      case 'admin-monitor':
+        return (
+          <RoleGuard userDepartment={userDepartment} allowedDepartments={['admin', 'finance', 'support']}>
+            <AdminActivityMonitor staffLogs={globalStaffActions} usersList={globalUsersList} onNavigate={setCurrentPage} />
           </RoleGuard>
         );
       case 'ceo':
@@ -392,10 +463,7 @@ export default function App() {
         return (
           <EscrowCheckout
             cartItems={activeTxPayload ? [activeTxPayload] : (cartItems.length > 0 ? cartItems : [{ id: 'fallback-1', title: 'Verified Escrow Package', price: 105000, quantity: 1 }])}
-            onCancel={() => {
-              setActiveTxPayload(null);
-              setCurrentPage(activeTxPayload ? 'marketplace' : 'cart');
-            }}
+            onCancel={handleCancelCheckout}
             onConfirmPayment={() => {
               const itemsToCheckOut = activeTxPayload ? [activeTxPayload] : cartItems;
               const orderTotal = itemsToCheckOut.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
@@ -413,6 +481,12 @@ export default function App() {
                 hub: 'Lagos Hub',
                 type: itemsToCheckOut[0]?.category || 'General Commerce'
               };
+
+              logAppActivity(currentUser, 'CHECKOUT_SUCCESS', {
+                transactionId: newTransaction.id,
+                totalAmount: newTransaction.amount,
+                itemsCount: itemsToCheckOut.length
+              });
 
               setGlobalTransactions((prev) => [newTransaction, ...prev]);
               setActiveTxPayload(null);
@@ -435,6 +509,7 @@ export default function App() {
             setCurrentPage={setCurrentPage} 
             setTransactions={setGlobalTransactions} 
             onProceedToEscrow={() => {
+              logAppActivity(currentUser, 'PROCEED_CART_TO_CHECKOUT', { itemsCount: cartItems.length });
               setActiveTxPayload(null);
               setCurrentPage('escrow-checkout');
             }}

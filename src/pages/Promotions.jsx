@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 
 export default function Promotions({ uploadedItems = [], onTriggerCheckout, setCurrentPage, setActiveTxPayload }) {
-  // Mock fallback array
+  // Seller Mode State: 'merchant' (catalog items) vs 'solo' (direct contact / custom items)
+  const [sellerMode, setSellerMode] = useState('merchant');
+
+  // Solo Seller Custom Asset Fields
+  const [soloTitle, setSoloTitle] = useState('');
+  const [soloPrice, setSoloPrice] = useState(15000);
+  const [soloCategory, setSoloCategory] = useState('fashion');
+  const [soloContact, setSoloContact] = useState(''); // Direct phone or WhatsApp contact
+
+  // Mock fallback array for merchants
   const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
     { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
     { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
@@ -40,7 +49,14 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
     item.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const selectedAsset = defaultItemsList.find(item => item.id === selectedItemId) || defaultItemsList[0];
+  const selectedMerchantAsset = defaultItemsList.find(item => item.id === selectedItemId) || defaultItemsList[0];
+
+  // Resolve current active asset details based on mode
+  const currentAssetTitle = sellerMode === 'merchant' 
+    ? (selectedMerchantAsset ? selectedMerchantAsset.title : 'Selected Merchant Item')
+    : (soloTitle.trim() || 'Solo Direct Offer');
+
+  const currentAssetContact = sellerMode === 'solo' ? soloContact.trim() : 'Store Catalog Official';
 
   // Math Formulations
   const activePlacement = placementMultipliers[adPlacement];
@@ -50,19 +66,30 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
   // Paystack Payment Gate Integration
   const handleLaunchCampaign = () => {
-    const currentAssetTitle = selectedAsset ? selectedAsset.title : 'Selected Item';
     const computedTotal = dailyBudget * campaignDays;
     
+    // Validation for Solo Seller mode
+    if (sellerMode === 'solo') {
+      if (!soloTitle.trim()) {
+        alert('Please enter a title for your product or service offer.');
+        return;
+      }
+      if (!soloContact.trim()) {
+        alert('Please provide your direct contact number or WhatsApp link so customers can reach you.');
+        return;
+      }
+    }
+
     // Check if Paystack script is loaded in window
     if (typeof window.PaystackPop === 'undefined') {
       alert('Paystack gateway is still initializing. Please check your network connection and try again.');
       return;
     }
 
-    // Initialize Paystack Popup Transaction with your live key
+    // Initialize Paystack Popup Transaction
     const handler = window.PaystackPop.setup({
       key: 'pk_live_0c84f6825e054064023e208a41e1f3ad34cf0f2d', 
-      email: 'merchant@bold.ng', 
+      email: sellerMode === 'solo' && soloContact.includes('@') ? soloContact : 'merchant@bold.ng', 
       amount: computedTotal * 100, // Paystack expects amount in kobo (Naira * 100)
       currency: 'NGN',
       ref: 'PROMO-' + Math.floor(100000 + Math.random() * 900000),
@@ -72,6 +99,16 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             display_name: "Target Asset",
             variable_name: "target_asset",
             value: currentAssetTitle
+          },
+          {
+            display_name: "Seller Mode",
+            variable_name: "seller_mode",
+            value: sellerMode === 'solo' ? 'Solo Direct Seller' : 'Store Merchant'
+          },
+          {
+            display_name: "Direct Contact",
+            variable_name: "direct_contact",
+            value: currentAssetContact
           },
           {
             display_name: "Ad Placement",
@@ -87,13 +124,15 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
           title: `Campaign Initiated for "${currentAssetTitle}"! Total billing matrix of ₦${computedTotal.toLocaleString()} verified via Paystack escrow`,
           amount: computedTotal,
           price: computedTotal,
-          category: 'Promotion',
+          category: sellerMode === 'solo' ? soloCategory : 'Promotion',
           quantity: 1,
           status: 'In Escrow Vault',
           date: new Date().toISOString().split('T')[0],
           paystackRef: response.reference,
           promotionSettings: {
             targetAsset: currentAssetTitle,
+            sellerMode,
+            directContact: currentAssetContact,
             adPlacement: activePlacement.name,
             dailyBudget,
             campaignDays
@@ -127,71 +166,151 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
           <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
             📈 BOLD ACCELERATION ENGINE
           </span>
-          <h1 className="text-2xl font-black text-white mt-1">Merchant Promotions Hub</h1>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Scale your product visibility node across the entire marketplace stream instantly via secure escrow.</p>
+          <h1 className="text-2xl font-black text-white mt-1">Merchant & Solo Promotions Hub</h1>
+          <p className="text-slate-400 text-xs mt-0.5 font-medium">Scale your catalog items or drop your direct WhatsApp contact for instant client conversions.</p>
+        </div>
+
+        {/* SELLER MODE TOGGLE BUTTONS */}
+        <div className="flex bg-[#0B132B] p-1 rounded-xl border border-slate-800 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => setSellerMode('merchant')}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              sellerMode === 'merchant' ? 'bg-[#FF5A00] text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🏪 Store Merchant
+          </button>
+          <button
+            type="button"
+            onClick={() => setSellerMode('solo')}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              sellerMode === 'solo' ? 'bg-[#FF5A00] text-white' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            👤 Solo Direct Seller
+          </button>
         </div>
       </div>
 
-      {/* STEP 1: INTERACTIVE ASSET PICKER INTERFACE */}
-      <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-base font-black tracking-tight">🎯 Step 1: Select Asset to Promote</h3>
-            <p className="text-xs text-slate-400">Choose the specific uploaded product or service for this marketing campaign node.</p>
+      {/* STEP 1: CONDITIONAL ASSET PICKER / SOLO CREATOR INTERFACE */}
+      {sellerMode === 'merchant' ? (
+        <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-base font-black tracking-tight">🎯 Step 1: Select Catalog Asset to Promote</h3>
+              <p className="text-xs text-slate-400">Choose from your uploaded inventory items for this marketing campaign node.</p>
+            </div>
+            
+            <input 
+              type="text"
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-[#0B132B] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl px-3 py-2 w-full sm:w-64 focus:outline-none focus:border-[#FF5A00]"
+            />
           </div>
-          
-          <input 
-            type="text"
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-[#0B132B] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl px-3 py-2 w-full sm:w-64 focus:outline-none focus:border-[#FF5A00]"
-          />
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
-          {filteredItems.map((item) => {
-            const isSelected = selectedItemId === item.id;
-            return (
-              <div
-                key={item.id}
-                onClick={() => setSelectedItemId(item.id)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
-                  isSelected 
-                    ? 'bg-[#FF5A00]/10 border-[#FF5A00] shadow-md' 
-                    : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
-                }`}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
+            {filteredItems.map((item) => {
+              const isSelected = selectedItemId === item.id;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItemId(item.id)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                    isSelected 
+                      ? 'bg-[#FF5A00]/10 border-[#FF5A00] shadow-md' 
+                      : 'bg-[#0B132B] border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <span className={`absolute top-2 right-2 text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded ${
+                    item.type === 'service' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                  }`}>
+                    {item.type}
+                  </span>
+
+                  <div className="pr-12">
+                    <h4 className="text-xs font-bold line-clamp-2 text-slate-100">
+                      {item.title}
+                    </h4>
+                    <p className="text-[#FF5A00] font-mono text-xs font-bold mt-2">
+                      ₦{Number(item.price).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                    <span className="capitalize text-[9px] text-slate-500">Hub: {item.category || 'General'}</span>
+                    {isSelected ? (
+                      <span className="text-[#FF5A00] font-black flex items-center gap-1">
+                        ● Active Target
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">Select Item</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* SOLO SELLER DIRECT CONTACT & OFFER FORM */
+        <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="border-b border-slate-800 pb-3">
+            <h3 className="text-base font-black tracking-tight">👤 Step 1: Define Your Direct Offer & Contact</h3>
+            <p className="text-xs text-slate-400">Promote your independent service or product and let buyers reach you directly via WhatsApp or phone.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Product or Service Title</label>
+              <input 
+                type="text"
+                placeholder="e.g., Custom UI/UX Design or Sneakers Wholesale"
+                value={soloTitle}
+                onChange={(e) => setSoloTitle(e.target.value)}
+                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Direct Contact (WhatsApp / Phone)</label>
+              <input 
+                type="text"
+                placeholder="e.g., +234 801 234 5678 or wa.me/234..."
+                value={soloContact}
+                onChange={(e) => setSoloContact(e.target.value)}
+                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Estimated Price (₦)</label>
+              <input 
+                type="number"
+                value={soloPrice}
+                onChange={(e) => setSoloPrice(Number(e.target.value))}
+                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Category Hub</label>
+              <select 
+                value={soloCategory}
+                onChange={(e) => setSoloCategory(e.target.value)}
+                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
               >
-                <span className={`absolute top-2 right-2 text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded ${
-                  item.type === 'service' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
-                }`}>
-                  {item.type}
-                </span>
-
-                <div className="pr-12">
-                  <h4 className="text-xs font-bold line-clamp-2 text-slate-100">
-                    {item.title}
-                  </h4>
-                  <p className="text-[#FF5A00] font-mono text-xs font-bold mt-2">
-                    ₦{Number(item.price).toLocaleString()}
-                  </p>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                  <span className="capitalize text-[9px] text-slate-500">Hub: {item.category || 'General'}</span>
-                  {isSelected ? (
-                    <span className="text-[#FF5A00] font-black flex items-center gap-1">
-                      ● Active Target
-                    </span>
-                  ) : (
-                    <span className="text-slate-600">Select Item</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                <option value="fashion">Men's Streetwear & Fashion</option>
+                <option value="electronics">Electronics & Gadgets</option>
+                <option value="services">Professional Services</option>
+                <option value="general">General Marketplace</option>
+              </select>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* STEP 2 & DETAILS DISPLAY MATRIX CONTAINER */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
@@ -281,8 +400,13 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             
             <div className="mt-4 space-y-4">
               <div className="bg-[#0B132B] p-3 rounded-xl border border-dashed border-slate-800">
-                <span className="text-[9px] text-slate-400 font-black uppercase block mb-1">Target Engine Lock</span>
-                <span className="text-xs font-bold text-white line-clamp-1">{selectedAsset?.title}</span>
+                <span className="text-[9px] text-slate-400 font-black uppercase block mb-1">
+                  {sellerMode === 'solo' ? 'Solo Offer Target' : 'Store Catalog Target'}
+                </span>
+                <span className="text-xs font-bold text-white line-clamp-1">{currentAssetTitle}</span>
+                {sellerMode === 'solo' && soloContact && (
+                  <span className="text-[10px] text-[#FF5A00] block mt-1 font-semibold">📞 Direct Contact: {soloContact}</span>
+                )}
               </div>
 
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
