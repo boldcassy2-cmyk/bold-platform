@@ -4,17 +4,66 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
   // Seller Mode State: 'merchant' (catalog items) vs 'solo' (direct contact / custom items)
   const [sellerMode, setSellerMode] = useState('merchant');
 
-  // Solo Seller Custom Asset Fields
+  // Expanded Solo Seller Custom Asset Fields with granular metadata
   const [soloTitle, setSoloTitle] = useState('');
   const [soloPrice, setSoloPrice] = useState(15000);
-  const [soloCategory, setSoloCategory] = useState('fashion');
+  const [soloCategory, setSoloCategory] = useState('electronics_laptops');
+  const [soloSubCategory, setSoloSubCategory] = useState('');
   const [soloContact, setSoloContact] = useState(''); // Direct phone or WhatsApp contact
+  
+  // Detailed attributes for custom assets (e.g., Laptops, Fashion, Real Estate, Services)
+  const [itemSpecs, setItemSpecs] = useState({
+    modelSize: '',
+    ramMemory: '',
+    storageCapacity: '',
+    condition: 'Brand New', // Brand New, Foreign Used (Tokunbo), Nigerian Used
+    location: '',
+    experienceLevel: '', // For jobs / tutors
+    serviceType: ''
+  });
 
-  // Mock fallback array for merchants
+  // Comprehensive fallback catalog with rich categories & subcategories
   const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
-    { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
-    { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
-    { id: 'p3', title: 'Branded Merchant Corporate Apparel', type: 'product', price: 15000, category: 'fashion' }
+    { 
+      id: 'p1', 
+      title: 'HP EliteBook 840 G6 - Core i7, 16GB RAM, 512GB SSD', 
+      type: 'product', 
+      price: 450000, 
+      category: 'electronics_laptops',
+      specs: { modelSize: '14-inch', ramMemory: '16GB', storageCapacity: '512GB SSD', condition: 'Foreign Used (Tokunbo)' }
+    },
+    { 
+      id: 'p2', 
+      title: 'Professional Home & Office Plumbing & Mechanical Repairs', 
+      type: 'service', 
+      price: 25000, 
+      category: 'mechanic_artisans',
+      specs: { serviceType: 'Emergency Repair & Installation', location: 'Lagos Mainland' }
+    },
+    { 
+      id: 'p3', 
+      title: 'Same-Day Interstate Dispatch & Logistics Delivery', 
+      type: 'service', 
+      price: 5000, 
+      category: 'transport_dispatch',
+      specs: { serviceType: 'Express Package Delivery' }
+    },
+    { 
+      id: 'p4', 
+      title: 'Unisex Vintage Oversized Streetwear Hoodie (Adult & Teens)', 
+      type: 'product', 
+      price: 18000, 
+      category: 'fashion_apparel',
+      specs: { modelSize: 'L / XL / XXL', condition: 'Brand New' }
+    },
+    { 
+      id: 'p5', 
+      title: 'Verified 3-Bedroom Luxury Apartment Lease in Lekki Phase 1', 
+      type: 'real_estate', 
+      price: 3500000, 
+      category: 'real_estate',
+      specs: { location: 'Lekki Phase 1, Lagos' }
+    }
   ];
 
   // Asset Management States
@@ -23,7 +72,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
   // Budget Matrix States
   const [dailyBudget, setDailyBudget] = useState(5000); 
-  const [campaignDays, setCampaignDays] = useState(7);   
+  const [campaignDays, setCampaignDays] = useState(7);    
   const [adPlacement, setAdPlacement] = useState('trending'); 
   
   // Real-time Traffic Multiplier Matrix
@@ -32,6 +81,100 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
     trending: { name: 'Main Marketplace Trending Ribbon', multiplier: 25, conversions: 0.05 },
     broadcast: { name: 'Direct Push Notification Broadcast', multiplier: 45, conversions: 0.08 }
   };
+
+  // Comprehensive Professional Categories and Subcategories Master List
+  const marketplaceCategories = [
+    {
+      id: 'electronics_laptops',
+      label: '💻 Electronics, Laptops & Gadgets',
+      subcategories: [
+        { id: 'laptops_windows', label: 'Windows Laptops (HP, Dell, Lenovo, Asus)' },
+        { id: 'laptops_macbook', label: 'Apple MacBooks (Air / Pro)' },
+        { id: 'phones_tablets', label: 'Smartphones & Tablets (iPhone, Samsung, etc.)' },
+        { id: 'gadgets_accessories', label: 'Gaming Consoles, Audio, Chargers & Accessories' }
+      ]
+    },
+    {
+      id: 'fashion_apparel',
+      label: '👕 Fashion & Wears (Old & New, Adult & Kids)',
+      subcategories: [
+        { id: 'mens_wear', label: "Men's Casual & Corporate Wear" },
+        { id: 'womens_wear', label: "Women's Fashion, Dresses & Gowns" },
+        { id: 'kids_wears', label: "Kids & Teens Clothing (All Ages)" },
+        { id: 'traditional_attire', label: "Traditional & Cultural Wears (Ankara, Agbada, Senator)" },
+        { id: 'footwear_bags', label: 'Shoes, Sneakers, Slides & Designer Bags' }
+      ]
+    },
+    {
+      id: 'beauty_hair',
+      label: '✨ Cosmetics, Hair & Beauty Products',
+      subcategories: [
+        { id: 'human_hair', label: 'Human Hair, Wigs, Bundles & Closures' },
+        { id: 'hair_styling', label: 'Hairdressing & Salon Services' },
+        { id: 'skincare_cosmetics', label: 'Skincare, Makeup, Perfumes & Body Care' }
+      ]
+    },
+    {
+      id: 'transport_dispatch',
+      label: '🏍️ Transport, Dispatch Riders & Logistics',
+      subcategories: [
+        { id: 'dispatch_delivery', label: 'Dispatch Riders & Same-Day Package Delivery' },
+        { id: 'interstate_transit', label: 'Interstate Transport & Car Charter Services' },
+        { id: 'vehicle_rental', label: 'Car Rental & Fleet Management' }
+      ]
+    },
+    {
+      id: 'mechanic_artisans',
+      label: '🔧 Mechanics, Technicians & Artisans',
+      subcategories: [
+        { id: 'auto_mechanic', label: 'Auto Mechanics, Vulcanizers & Car Diagnostics' },
+        { id: 'home_repairs', label: 'Plumbers, Electricians, AC & Fridge Repairers' },
+        { id: 'builders_welding', label: 'Carpenters, Welders & Masonry Contractors' }
+      ]
+    },
+    {
+      id: 'real_estate',
+      label: '🏠 Real Estate Agents & Property Rentals',
+      subcategories: [
+        { id: 'apartment_rentals', label: 'Residential Apartments for Rent / Lease' },
+        { id: 'land_sales', label: 'Lands, Plots & Commercial Properties' },
+        { id: 'shortlet_apartments', label: 'Shortlet Apartments & Event Spaces' }
+      ]
+    },
+    {
+      id: 'education_books',
+      label: '📚 Digital Books, Physical Books & Tutors',
+      subcategories: [
+        { id: 'digital_books', label: 'E-Books, Online Courses & PDF Guides' },
+        { id: 'physical_books', label: 'Textbooks, Novels & Educational Materials' },
+        { id: 'online_offline_tutors', label: 'Private Tutors (Home Lessons & Online Coaching)' }
+      ]
+    },
+    {
+      id: 'jobs_employment',
+      label: '💼 Jobs, Vacancies & Hiring (Job Seekers & Employers)',
+      subcategories: [
+        { id: 'employer_hiring', label: 'Employers Looking for Workers / Staff' },
+        { id: 'job_seeker', label: 'Job Seekers Looking for Employment' }
+      ]
+    },
+    {
+      id: 'tickets_events',
+      label: '🎟️ Ticket Sellers & Event Passes',
+      subcategories: [
+        { id: 'concert_tickets', label: 'Concert, Show & Party Tickets' },
+        { id: 'transport_tickets', label: 'Bus, Flight & Cinema Ticket Bookings' }
+      ]
+    },
+    {
+      id: 'general_hustles',
+      label: '⚡ General Hustles & Services',
+      subcategories: [
+        { id: 'freelance_digital', label: 'Web Development, Graphics & Video Editing' },
+        { id: 'miscellaneous_hustle', label: 'Other Verified Local Hustles & Services' }
+      ]
+    }
+  ];
 
   // Load Paystack script dynamically if not present
   useEffect(() => {
@@ -135,7 +278,8 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             directContact: currentAssetContact,
             adPlacement: activePlacement.name,
             dailyBudget,
-            campaignDays
+            campaignDays,
+            specs: sellerMode === 'solo' ? itemSpecs : {}
           }
         };
 
@@ -263,12 +407,12 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
         </div>
       )}
 
-      {/* SOLO SELLER DIRECT CONTACT & OFFER FORM: ONLY SHOWN FOR SOLO SELLERS */}
+      {/* SOLO SELLER DIRECT CONTACT & GRANULAR OFFER FORM: ONLY SHOWN FOR SOLO SELLERS */}
       {sellerMode === 'solo' && (
         <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 animate-fadeIn">
           <div className="border-b border-slate-800 pb-3">
-            <h3 className="text-base font-black tracking-tight">👤 Step 1: Define Your Direct Offer & Contact</h3>
-            <p className="text-xs text-slate-400">Promote your independent service or product and let buyers reach you directly via WhatsApp or phone.</p>
+            <h3 className="text-base font-black tracking-tight">👤 Step 1: Define Your Direct Offer, Specs & Contact</h3>
+            <p className="text-xs text-slate-400">List your products, tech specs (RAM/Storage), services, rentals, jobs or hustles with full customer transparency.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -276,7 +420,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
               <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Product or Service Title</label>
               <input 
                 type="text"
-                placeholder="e.g., Custom UI/UX Design or Streetwear Outfit"
+                placeholder="e.g., HP EliteBook Core i5 16GB/512GB or Same-Day Dispatch"
                 value={soloTitle}
                 onChange={(e) => setSoloTitle(e.target.value)}
                 className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
@@ -295,7 +439,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Estimated Price (₦)</label>
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Estimated Price / Salary (₦)</label>
               <input 
                 type="number"
                 value={soloPrice}
@@ -311,12 +455,94 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 onChange={(e) => setSoloCategory(e.target.value)}
                 className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
               >
-                <option value="fashion">Men's Streetwear & Fashion</option>
-                <option value="electronics">Electronics & Gadgets</option>
-                <option value="services">Professional Services</option>
-                <option value="general">General Marketplace</option>
+                {marketplaceCategories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                ))}
               </select>
             </div>
+          </div>
+
+          {/* DYNAMIC SUB-CATEGORY SELECTOR */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/60">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Subcategory</label>
+              <select
+                value={soloSubCategory}
+                onChange={(e) => setSoloSubCategory(e.target.value)}
+                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
+              >
+                <option value="">Select Subcategory...</option>
+                {marketplaceCategories
+                  .find(c => c.id === soloCategory)
+                  ?.subcategories.map(sub => (
+                    <option key={sub.id} value={sub.id}>{sub.label}</option>
+                  ))
+                }
+              </select>
+            </div>
+
+            {/* CONDITIONAL SPEC BUILDERS FOR LAPTOPS & TECH */}
+            {soloCategory === 'electronics_laptops' && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">RAM Memory Size</label>
+                  <select 
+                    value={itemSpecs.ramMemory}
+                    onChange={(e) => setItemSpecs({...itemSpecs, ramMemory: e.target.value})}
+                    className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
+                  >
+                    <option value="">Select RAM...</option>
+                    <option value="4GB RAM">4GB RAM</option>
+                    <option value="8GB RAM">8GB RAM</option>
+                    <option value="16GB RAM">16GB RAM</option>
+                    <option value="32GB+ RAM">32GB+ RAM</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Storage Capacity</label>
+                  <select 
+                    value={itemSpecs.storageCapacity}
+                    onChange={(e) => setItemSpecs({...itemSpecs, storageCapacity: e.target.value})}
+                    className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
+                  >
+                    <option value="">Select Storage...</option>
+                    <option value="128GB SSD">128GB SSD</option>
+                    <option value="256GB SSD">256GB SSD</option>
+                    <option value="512GB SSD">512GB SSD</option>
+                    <option value="1TB+ SSD / HDD">1TB+ SSD / HDD</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* CONDITIONAL CONDITION FIELD FOR PHYSICAL ITEMS & FASHION */}
+            {(soloCategory === 'fashion_apparel' || soloCategory === 'beauty_hair' || soloCategory === 'electronics_laptops') && (
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Item Condition & Size Info</label>
+                <input 
+                  type="text"
+                  placeholder="e.g., Brand New / Tokunbo / Sizes S, M, L, XL"
+                  value={itemSpecs.modelSize}
+                  onChange={(e) => setItemSpecs({...itemSpecs, modelSize: e.target.value})}
+                  className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
+                />
+              </div>
+            )}
+
+            {/* CONDITIONAL LOCATION FIELD FOR REAL ESTATE / MECHANICS / DISPATCH */}
+            {(soloCategory === 'real_estate' || soloCategory === 'mechanic_artisans' || soloCategory === 'transport_dispatch') && (
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Service Location / Base</label>
+                <input 
+                  type="text"
+                  placeholder="e.g., Ikeja, Lekki, Abuja, Port Harcourt"
+                  value={itemSpecs.location}
+                  onChange={(e) => setItemSpecs({...itemSpecs, location: e.target.value})}
+                  className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -416,6 +642,11 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 {sellerMode === 'solo' && soloContact && (
                   <span className="text-[10px] text-[#FF5A00] block mt-1 font-semibold">📞 Direct Contact: {soloContact}</span>
                 )}
+                {sellerMode === 'solo' && (itemSpecs.ramMemory || itemSpecs.modelSize || itemSpecs.location) && (
+                  <span className="text-[9px] text-slate-400 block mt-1">
+                    Specs: {[itemSpecs.ramMemory, itemSpecs.storageCapacity, itemSpecs.modelSize, itemSpecs.location].filter(Boolean).join(' | ')}
+                  </span>
+                )}
               </div>
 
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
@@ -449,13 +680,8 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             >
               🚀 Pay & Launch Campaign (Paystack)
             </button>
-            <span className="text-[9px] text-slate-500 font-medium block text-center">
-              Secured by Paystack Escrow Gateway. Funds lock safely until milestone fulfillment.
-            </span>
           </div>
-
         </div>
-
       </div>
     </main>
   );

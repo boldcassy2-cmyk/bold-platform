@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPayment, onNavigate }) {
-  const currentUser = auth?.currentUser;
+  const [currentUser, setCurrentUser] = useState(auth?.currentUser);
   const [loading, setLoading] = useState(false);
+
+  // Listen to Firebase auth state changes to avoid null race-conditions on mount
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Self-healing fallback: If cart is empty, use a safe default item so it never locks at ₦0
   const activeItems = (cartItems && cartItems.length > 0) 
@@ -35,49 +46,54 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
 
     setLoading(true);
 
-    const handler = window.PaystackPop.setup({
-      key: publicKey,
-      email: currentUser?.email || "buyer@bold.ng",
-      amount: amountInKobo,
-      currency: 'NGN',
-      ref: 'BOLD-ESCROW-' + Date.now(),
-      metadata: {
-        custom_fields: [
-          {
-            display_name: "Platform",
-            variable_name: "platform",
-            value: "bold.ng Escrow Vault"
-          }
-        ]
-      },
-      callback: function(response) {
-        setLoading(false);
-        
-        const itemSummary = activeItems.length === 1 
-          ? `${activeItems[0].title} (x${activeItems[0].quantity || 1})`
-          : `${activeItems.length} items bundle (${activeItems[0]?.title || 'Multi-item'})`;
+    try {
+      const handler = window.PaystackPop.setup({
+        key: publicKey,
+        email: currentUser?.email || "buyer@bold.ng",
+        amount: amountInKobo,
+        currency: 'NGN',
+        ref: 'BOLD-ESCROW-' + Date.now(),
+        metadata: {
+          custom_fields: [
+            {
+              display_name: "Platform",
+              variable_name: "platform",
+              value: "bold.ng Escrow Vault"
+            }
+          ]
+        },
+        callback: function(response) {
+          setLoading(false);
+          
+          const itemSummary = activeItems.length === 1 
+            ? `${activeItems[0].title} (x${activeItems[0].quantity || 1})`
+            : `${activeItems.length} items bundle (${activeItems[0]?.title || 'Multi-item'})`;
 
-        onConfirmPayment({
-          id: response.reference || ('TX-' + Math.floor(1000 + Math.random() * 9000)),
-          title: itemSummary,
-          amount: totalAmountInNaira,
-          status: 'In Escrow Vault',
-          date: new Date().toISOString().split('T')[0],
-          hub: 'Lagos Hub',
-          items: activeItems
-        });
-      },
-      onClose: function() {
-        setLoading(false);
-        alert('Payment window closed. Your escrow deposit was not completed.');
-      }
-    });
+          onConfirmPayment({
+            id: response.reference || ('TX-' + Math.floor(1000 + Math.random() * 9000)),
+            title: itemSummary,
+            amount: totalAmountInNaira,
+            status: 'In Escrow Vault',
+            date: new Date().toISOString().split('T')[0],
+            hub: 'Lagos Hub',
+            items: activeItems
+          });
+        },
+        onClose: function() {
+          setLoading(false);
+        }
+      });
 
-    handler.openIframe();
+      handler.openIframe();
+    } catch (err) {
+      console.error("Paystack Initialization Error:", err);
+      setLoading(false);
+      alert("Could not initialize payment gateway. Please try again.");
+    }
   };
 
   return (
-    <div className="max-w-3xl mx-auto my-8 px-4 text-white">
+    <div className="max-w-3xl mx-auto my-8 px-4 text-white font-sans text-left">
       <div className="bg-[#16223F] p-8 rounded-3xl border border-slate-800 shadow-2xl space-y-6">
         <div className="flex justify-between items-center border-b border-slate-800 pb-4">
           <div>
@@ -87,7 +103,7 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
           <button 
             type="button"
             onClick={onCancel}
-            className="text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-700 cursor-pointer"
+            className="text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-700 cursor-pointer transition-all"
           >
             ✕ Cancel
           </button>
@@ -136,7 +152,7 @@ export default function EscrowCheckout({ cartItems = [], onCancel, onConfirmPaym
           type="button"
           onClick={handlePaystackPayment}
           disabled={loading || totalAmountInNaira === 0}
-          className="w-full bg-[#FF5A00] hover:bg-[#e05000] text-white font-black py-4 rounded-2xl transition-all shadow-[0_4px_20px_rgba(255,90,0,0.4)] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+          className="w-full bg-[#FF5A00] hover:bg-[#e05000] text-white font-black py-4 rounded-2xl transition-all shadow-[0_4px_20px_rgba(255,90,0,0.4)] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 text-sm uppercase tracking-wider border-none"
         >
           {loading ? (
             <>
