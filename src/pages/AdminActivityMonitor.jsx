@@ -1,21 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { auth, db } from '../firebase';
 
-export default function AdminActivityMonitor({ activities = [] }) {
+export default function AdminActivityMonitor({ activities = [], onNavigate }) {
+  const [currentUser, setCurrentUser] = useState(auth?.currentUser || null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [userRole, setUserRole] = useState('USER');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'traffic' | 'auth' | 'search' | 'upload' | 'escrow'
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Comprehensive sample data covering all professional enterprise telemetry verticals
+  useEffect(() => {
+    if (!auth) {
+      setLoadingAuth(false);
+      return;
+    }
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+      if (user?.email?.toLowerCase() === 'boldcassy2@gmail.com') {
+        setUserRole('CEO');
+      }
+      setLoadingAuth(false);
+    });
+
+    // Fallback timer so it never gets stuck forever if auth is slow
+    const timeout = setTimeout(() => {
+      setLoadingAuth(false);
+    }, 1500);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  // Show a quick loader only briefly
+  if (loadingAuth) {
+    return (
+      <div className="p-12 text-center text-slate-400 font-mono text-xs">
+        Verifying security clearance...
+      </div>
+    );
+  }
+
+  // 🔒 STRICT SECURITY CHECK with direct email override
+  const userEmail = currentUser?.email?.toLowerCase() || '';
+  const isCeoEmail = userEmail === 'boldcassy2@gmail.com' || userEmail === 'admin@bold.ng';
+  
+  const isAdminOrCeo = 
+    userRole === 'ADMIN' || 
+    userRole === 'CEO' || 
+    isCeoEmail;
+
+  if (!isAdminOrCeo) {
+    return (
+      <div className="p-8 text-center bg-slate-900 border border-red-500/30 rounded-2xl max-w-lg mx-auto mt-12">
+        <h2 className="text-xl font-bold text-red-400 mb-2">Access Restricted</h2>
+        <p className="text-slate-400 text-sm mb-4">
+          Access to the Enterprise Telemetry & Activity Monitor is restricted to executive and administrative personnel.
+        </p>
+        <button 
+          type="button"
+          onClick={() => onNavigate('home')} 
+          className="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+        >
+          Return Home
+        </button>
+      </div>
+    );
+  }
+
   const sampleActivities = [
-    {
-      id: 'ACT-901',
-      category: 'auth',
-      userEmail: 'unauthorized.intruder@unknown.com',
-      action: 'Failed Login Attempt',
-      details: 'Incorrect password entered (3rd consecutive failure)',
-      ipAddress: '102.89.44.12',
-      timestamp: '2026-09-21 06:14:22',
-      statusType: 'error' // error, success, warning
-    },
     {
       id: 'ACT-902',
       category: 'search',
@@ -80,7 +134,7 @@ export default function AdminActivityMonitor({ activities = [] }) {
 
   const liveFeed = activities.length > 0 ? activities : sampleActivities;
 
-  // Filter logic across all professional metrics
+  // Filter logic across professional metrics
   const filteredFeed = liveFeed.filter((item) => {
     const matchesSearch = 
       item.userEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -115,14 +169,21 @@ export default function AdminActivityMonitor({ activities = [] }) {
             </p>
           </div>
           
-          <div className="w-full md:w-auto">
+          <div className="w-full md:w-auto flex items-center gap-3">
             <input
               type="text"
-              placeholder="Search email, action, IP, or keyword..."
+              placeholder="Search email, action, IP..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-[#FF5A00] w-full md:w-72 font-mono"
             />
+            <button
+              type="button"
+              onClick={() => onNavigate('marketplace')}
+              className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+            >
+              ← Back
+            </button>
           </div>
         </div>
 

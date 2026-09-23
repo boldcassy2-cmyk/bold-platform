@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-// Marketplace Category Taxonomy Definition (Sanitized & Expanded)
 const CATEGORY_DATA = {
   automobiles: {
     label: '🚗 Mobile & Vehicles',
@@ -8,7 +7,6 @@ const CATEGORY_DATA = {
       'Cars (Foreign & Nigerian Used)',
       'Brand New Vehicles',
       'Buses & Commercial Trucks',
-      'Motorcycles & Tricycles (Keke)',
       'Auto Spare Parts & Accessories',
       'Vehicle Rentals & Haulage Services'
     ],
@@ -19,69 +17,131 @@ const CATEGORY_DATA = {
       { id: 'condition', label: 'Condition', type: 'select', options: ['Brand New', 'Foreign Used (Tokunbo)', 'Nigerian Used'] }
     ]
   },
-  fashion: {
-    label: '👕 Fashion, Wearables & Accessories',
+  bikes_motorcycles: {
+    label: '🏍️ Bikes, Motorcycles & Tricycles (Keke)',
     subcategories: [
-      "Men's Wear (Casual, Corporate & Traditional)",
-      "Women's Wear (Dresses, Corporate & Ankara)",
-      "Kids & Babies Wear (All Ages)",
-      "Plus Size & Large Fit Apparel",
-      "Vintage & Thrift (Okirika / Old School Wear)",
-      'Footwear & Shoes (Adults & Kids)',
-      'Jewelry, Wristwatches & Bags',
-      'Tailoring, Fabrics & Custom Native Designs'
+      'Motorcycles & Okada',
+      'Tricycles (Keke Napep / Passenger & Cargo)',
+      'Bicycles & Electric Scooters',
+      'Bike & Keke Spare Parts (Tyres, Helmets, Engines)'
     ],
     specFields: [
-      { id: 'size', label: 'Size Range', type: 'text', placeholder: 'e.g., Small, Medium, Large, Kids 4-6Y' },
-      { id: 'targetAudience', label: 'Target Demographic', type: 'select', options: ['Men', 'Women', 'Unisex', 'Boys', 'Girls', 'Babies'] },
-      { id: 'condition', label: 'Condition/Grade', type: 'select', options: ['Brand New', 'First Grade Thrift (London Used)'] },
-      { id: 'material', label: 'Material / Fabric', type: 'text', placeholder: 'e.g., 100% Cotton, Ankara, Chiffon' }
+      { id: 'brand', label: 'Brand / Model', type: 'text', placeholder: 'e.g., Bajaj, TVS, Honda, Yamaha' },
+      { id: 'condition', label: 'Condition', type: 'select', options: ['Brand New', 'Foreign Used', 'Nigerian Used / Working'] },
+      { id: 'engineCapacity', label: 'Engine Capacity / CC', type: 'text', placeholder: 'e.g., 100cc, 125cc, 150cc' }
     ]
   },
-  homeappliances: {
-    label: '🏠 Home Appliances & Kitchen Items',
+  phones_gadgets: {
+    label: '📱 Phones, Laptops & Gadgets',
     subcategories: [
-      'Refrigerators, Freezers & Coolers',
-      'Cookers, Ovens & Gas Burners',
-      'Kitchen Utensils, Pots & Cutlery',
-      'Blenders, Microwaves & Food Processors',
-      'Washing Machines & Ironing',
-      'Air Conditioners, Fans & Ventilation',
-      'Generators, Inverters & Solar Power Systems'
+      'Smartphones & Mobile Phones (iPhone, Samsung, Tecno, Infinix)',
+      'Windows Laptops & Notebooks (HP, Dell, Lenovo)',
+      'Apple MacBooks (Air / Pro)',
+      'Tablets, iPads & E-Readers',
+      'Gaming Consoles, Smartwatches & Tech Accessories'
     ],
     specFields: [
-      { id: 'brand', label: 'Brand Name', type: 'text', placeholder: 'e.g., Hisense, LG, Century' },
-      { id: 'powerRating', label: 'Power Rating / Capacity', type: 'text', placeholder: 'e.g., 1.5 HP, 5KVA, 200L' },
-      { id: 'condition', label: 'Condition', type: 'select', options: ['Brand New', 'Foreign Used', 'Refurbished'] }
+      { id: 'brand', label: 'Brand Name', type: 'text', placeholder: 'e.g., Apple, HP, Samsung' },
+      { id: 'ramMemory', label: 'RAM Size', type: 'select', options: ['4GB', '8GB', '16GB', '32GB+'] },
+      { id: 'storageCapacity', label: 'Storage (SSD / ROM)', type: 'text', placeholder: 'e.g., 256GB SSD, 128GB ROM' },
+      { id: 'condition', label: 'Condition', type: 'select', options: ['Brand New (Boxed)', 'UK Used (Clean)', 'Nigerian Used'] }
     ]
   },
-  babywears: {
-    label: '🍼 Baby Wears & Infant Essentials',
+  gift_cards: {
+    label: '💳 Gift Cards & Digital Vouchers',
     subcategories: [
-      'Newborn Clothing & Gift Sets',
-      'Baby Diapers & Wipes',
-      'Baby Food, Formula & Feeding Bottles',
-      'Strollers, Car Seats & Carriers',
-      'Baby Bathing & Skin Care'
+      'Apple / iTunes Gift Cards',
+      'Google Play Gift Cards',
+      'Steam, Amazon & Razer Gold Cards',
+      'Verified Crypto Vouchers & Digital Currency'
     ],
     specFields: [
-      { id: 'ageGroup', label: 'Age Group', type: 'select', options: ['Newborn (0-3M)', 'Infant (3-12M)', 'Toddler (1-3Y)'] },
-      { id: 'brand', label: 'Brand / Manufacturer', type: 'text', placeholder: 'e.g., Pampers, Nestlé, Chicco' }
+      { id: 'cardType', label: 'Card Platform', type: 'select', options: ['Apple/iTunes', 'Google Play', 'Steam', 'Amazon', 'Razer Gold', 'Other'] },
+      { id: 'cardCurrency', label: 'Currency Denomination', type: 'select', options: ['USD ($)', 'GBP (£)', 'EUR (€)', 'CAD ($)', 'AUD ($)'] },
+      { id: 'cardFormat', label: 'Delivery Format', type: 'select', options: ['Physical Card (Scanned)', 'E-Code / Digital PIN'] }
     ]
   },
-  foodstuffs: {
+  building_materials: {
+    label: '🏗️ Building Materials & Construction',
+    subcategories: [
+      'Cement, Iron Rods & Structural Steel',
+      'Roofing Sheets, Wood & Timber',
+      'Tiles, Marble, Granite & Sanitary Wares',
+      'Paints, Plaster of Paris (POP) & Doors',
+      'Solar Panels, Inverters & Electrical Wiring'
+    ],
+    specFields: [
+      { id: 'materialGrade', label: 'Grade / Specification', type: 'text', placeholder: 'e.g., 12mm Iron Rod, 3X4 Timber' },
+      { id: 'brand', label: 'Manufacturer / Brand', type: 'text', placeholder: 'e.g., Dangote, BUA, Lontor' },
+      { id: 'unitMeasurement', label: 'Selling Unit', type: 'text', placeholder: 'e.g., Per Ton, Per Bag, Bundle, Square Metre' }
+    ]
+  },
+  motor_parts: {
+    label: '🚗 Motor Parts & Vehicle Accessories',
+    subcategories: [
+      'Car Engines, Gearboxes & Mechanical Parts',
+      'Brake Pads, Shock Absorbers & Suspension',
+      'Tyres, Rims & Wheel Alignment',
+      'Car Batteries, Headlights & Electricals',
+      'Body Parts (Bumpers, Doors, Mirrors)'
+    ],
+    specFields: [
+      { id: 'partCompatibility', label: 'Compatible Vehicle Make', type: 'text', placeholder: 'e.g., Toyota Camry 2010-2014, Honda Accord' },
+      { id: 'condition', label: 'Part Condition', type: 'select', options: ['Brand New', 'Tokunbo (Foreign Used)', 'First Grade Nigerian Used'] }
+    ]
+  },
+  foodstuffs_agro: {
     label: '🌾 Food Stuffs & Agro-Allied',
     subcategories: [
       'Grains (Rice, Beans, Maize, Millet)',
       'Tubers (Yam, Garri, Cassava Flour)',
       'Oils (Red Palm Oil, Vegetable Oil)',
       'Spices, Condiments & Seasonings',
-      'Livestock, Meat & Frozen Foods',
-      'Fresh Fruits & Vegetables'
+      'Fresh Fruits, Vegetables & Farm Produce'
     ],
     specFields: [
-      { id: 'unitMeasurement', label: 'Measurement / Package Size', type: 'text', placeholder: 'e.g., 50kg Bag, Derica, Basket, Paint Bucket' },
-      { id: 'origin', label: 'Source / Location', type: 'text', placeholder: 'e.g., Local Farm / Northern Market' }
+      { id: 'unitMeasurement', label: 'Measurement / Package Size', type: 'text', placeholder: 'e.g., 50kg Bag, Paint Bucket, Derica' },
+      { id: 'origin', label: 'Source / Farm Location', type: 'text', placeholder: 'e.g., Local Farm / Northern Market' }
+    ]
+  },
+  provisions_supermarket: {
+    label: '🛒 Provisions & Supermarket Wholesale',
+    subcategories: [
+      'Beverages, Milk, Tea & Coffee',
+      'Toiletries, Soaps & Personal Care',
+      'Canned Foods, Pasta & Noodles',
+      'Baby Foods, Cereals & Snacks',
+      'Household Cleaning & Detergents'
+    ],
+    specFields: [
+      { id: 'salesType', label: 'Sales Format', type: 'select', options: ['Wholesale (Carton / Carton Lots)', 'Retail (Single Pieces)'] },
+      { id: 'brand', label: 'Brand Name', type: 'text', placeholder: 'e.g., Nestlé, Unilever, Dangote, Indomie' }
+    ]
+  },
+  pets_animals_business: {
+    label: '🐾 Pets, Animals & Livestock Business',
+    subcategories: [
+      'Dogs, Puppies & Household Pets',
+      'Poultry Livestock (Broilers, Layers, Day-Old Chicks)',
+      'Livestock (Goats, Sheep, Pigs, Cattle)',
+      'Pet Food, Cages, Aquariums & Veterinary Supplies'
+    ],
+    specFields: [
+      { id: 'animalBreed', label: 'Breed / Species', type: 'text', placeholder: 'e.g., Caucasian Shepherd, Boer Goat, Cobb 500' },
+      { id: 'ageOrStage', label: 'Age / Development Stage', type: 'text', placeholder: 'e.g., 3 Months Old, Point of Lay, Mature' }
+    ]
+  },
+  schools_education: {
+    label: '🏫 Schools & Education Centers',
+    subcategories: [
+      'Nursery, Primary & Secondary School Admissions',
+      'Vocational & Tech Training Centers (Coding, Tailoring)',
+      'Exam Prep & Tutorial Centers (WAEC, JAMB, IELTS)',
+      'Professional Certification Academies'
+    ],
+    specFields: [
+      { id: 'institutionType', label: 'Institution Type', type: 'select', options: ['Formal School', 'Tech/Vocational Center', 'Exam Prep Center'] },
+      { id: 'locationArea', label: 'Campus Location / Area', type: 'text', placeholder: 'e.g., Ikeja, Abuja, Online' }
     ]
   },
   realestate: {
@@ -90,11 +150,11 @@ const CATEGORY_DATA = {
       'Residential Apartments for Rent',
       'Houses & Lands for Sale',
       'Commercial Shops & Office Spaces',
-      'Shortlet Apartments',
+      'Shortlet Apartments & Event Venues',
       'Warehouses & Industrial Land'
     ],
     specFields: [
-      { id: 'locationArea', label: 'Specific Neighborhood / Location', type: 'text', placeholder: 'e.g., Lekki Phase 1, Ikeja GRA, Wuse 2' },
+      { id: 'locationArea', label: 'Specific Neighborhood / Location', type: 'text', placeholder: 'e.g., Lekki Phase 1, Ikeja GRA' },
       { id: 'propertyType', label: 'Property Type', type: 'text', placeholder: 'e.g., 3 Bedroom Flat, Open Land' },
       { id: 'agencyFee', label: 'Includes Agency/Legal Fee', type: 'select', options: ['Yes', 'No (Negotiable)'] }
     ]
@@ -112,79 +172,21 @@ const CATEGORY_DATA = {
     ],
     specFields: [
       { id: 'experience', label: 'Years of Experience', type: 'text', placeholder: 'e.g., 8 Years' },
-      { id: 'serviceCoverage', label: 'Service Coverage Areas', type: 'text', placeholder: 'e.g., Mainland & Island Lagos' },
-      { id: 'callOutFee', label: 'Inspection / Call-out Policy', type: 'text', placeholder: 'e.g., ₦5,000 Inspection Fee' }
-    ]
-  },
-  pharmacy: {
-    label: '💊 Pharmacy & Health',
-    subcategories: [
-      'Prescription & Over-the-Counter Drugs',
-      'Vitamins, Supplements & Herbs',
-      'First Aid & Medical Consumables',
-      'Medical Devices & Monitors (BP, Glucometer)',
-      'Personal Care & Hygiene'
-    ],
-    specFields: [
-      { id: 'dosage', label: 'Dosage / Strength', type: 'text', placeholder: 'e.g., 500mg, 100ml' },
-      { id: 'packSize', label: 'Package Format', type: 'text', placeholder: 'e.g., 20 Tablets / Pack' }
-    ]
-  },
-  books: {
-    label: '📚 Book Sellers (Physical & eBooks)',
-    subcategories: [
-      'Academic Textbooks & Exam Prep (WAEC, JAMB)',
-      'Business, Finance & Entrepreneurship',
-      'Novels, Fiction & Literature',
-      'Religious & Motivational Books',
-      'Tech, Coding & Digital Guides (eBooks)'
-    ],
-    specFields: [
-      { id: 'mediaFormat', label: 'Format Type', type: 'select', options: ['Physical Book', 'Digital eBook (PDF/ePub)', 'Audiobook'] },
-      { id: 'author', label: 'Author Name', type: 'text', placeholder: 'e.g., Chinua Achebe' }
-    ]
-  },
-  tutors: {
-    label: '🎓 Tutors & Learning Centers',
-    subcategories: [
-      'Programming & Tech Instructors',
-      'Academic Tutors (Math, Sciences, Arts)',
-      'Language Lessons (English, French, Local Languages)',
-      'Professional Skills & Digital Marketing',
-      'Music & Instrumental Trainers'
-    ],
-    specFields: [
-      { id: 'modeOfDelivery', label: 'Mode of Training', type: 'select', options: ['Online (Zoom/Video)', 'Physical (Home Lessons)', 'Physical Center / Class'] },
-      { id: 'duration', label: 'Course Duration / Schedule', type: 'text', placeholder: 'e.g., 3 Months / Weekends' }
-    ]
-  },
-  jobshub: {
-    label: '💼 Jobs Hub & Employment',
-    subcategories: [
-      'Job Vacancies (Employer Postings)',
-      'Job Seekers Profiles & Qualifications',
-      'Contract & Freelance Gigs',
-      'Internships & Apprenticeship Openings'
-    ],
-    specFields: [
-      { id: 'employmentType', label: 'Job Type', type: 'select', options: ['Full-Time', 'Part-Time', 'Remote', 'Contract', 'Internship'] },
-      { id: 'qualification', label: 'Required Qualification / Skill', type: 'text', placeholder: 'e.g., OND, BSc, React Developer, Sales Rep' },
-      { id: 'salaryRange', label: 'Salary / Stipend Range', type: 'text', placeholder: 'e.g., ₦150,000 - ₦250,000 / month' }
+      { id: 'serviceCoverage', label: 'Service Coverage Areas', type: 'text', placeholder: 'e.g., Mainland & Island Lagos' }
     ]
   },
   services: {
-    label: '⚙️ General Services & Miscellaneous',
+    label: '⚙️ General Services, Logistics & Hustles',
     subcategories: [
-      'Event Planning, DJ & Ushering Services',
-      'Catering & Outdoor Cooking',
+      'Dispatch Riders & Same-Day Package Delivery',
+      'Interstate Logistics & Haulage',
+      'Event Planning, Catering & Ushering',
       'Printing, Branding & Signage',
-      'Logistics, Courier & Delivery Services',
-      'Cleaning & Fumigation Services',
-      'Legal, Accounting & Business Registration'
+      'Legal, Accounting & CAC Business Registration'
     ],
     specFields: [
-      { id: 'serviceType', label: 'Service Category', type: 'text', placeholder: 'e.g., Corporate Event Catering' },
-      { id: 'turnaroundTime', label: 'Delivery Timeframe', type: 'text', placeholder: 'e.g., 24 Hours or Book 1 Week Ahead' }
+      { id: 'serviceType', label: 'Service Category', type: 'text', placeholder: 'e.g., Same-Day Delivery / Corporate Catering' },
+      { id: 'turnaroundTime', label: 'Delivery Timeframe', type: 'text', placeholder: 'e.g., Instant Dispatch or Book 1 Week Ahead' }
     ]
   }
 };

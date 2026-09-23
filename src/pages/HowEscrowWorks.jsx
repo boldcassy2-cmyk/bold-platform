@@ -2,33 +2,48 @@ import React from 'react';
 
 export default function HowEscrowWorks({ onNavigate }) {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 text-white space-y-8">
-      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-        <div>
-          <span className="text-[10px] font-black tracking-widest text-[#FF5A00] uppercase">Protocol Architecture</span>
-          <h1 className="text-3xl font-black mt-1">How Escrow Vault Works</h1>
+    <div className="bg-[#0B132B] min-h-[70vh] text-white p-6 md:p-10 rounded-2xl border border-slate-800 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 bg-[#FF5A00] rounded-xl flex items-center justify-center text-2xl font-bold shadow-lg shadow-[#FF5A00]/20">
+          🛡️
         </div>
-        <button onClick={() => onNavigate('marketplace')} className="text-xs bg-slate-800 px-4 py-2 rounded-xl text-slate-300 hover:text-white">
-          ← Back to Marketplace
-        </button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">How Bold.ng Escrow Works</h1>
+          <p className="text-xs text-slate-400 font-mono">Secure Multi-Vendor Transaction Protocol</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 space-y-3">
-          <span className="text-2xl">1️⃣</span>
-          <h3 className="font-bold text-lg">Fund Deposit</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">Buyer initiates checkout and funds are securely locked in the bold.ng Escrow Vault via Paystack.</p>
+      <div className="space-y-6 text-slate-300 text-sm leading-relaxed">
+        <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800">
+          <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
+            <span className="text-[#FF5A00]">01.</span> Buyer Funds Secure Vault
+          </h3>
+          <p>When you place an order on Bold.ng, your payment is held securely in our protected escrow vault. The vendor is notified to ship the item, but they cannot access your money yet.</p>
         </div>
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 space-y-3">
-          <span className="text-2xl">2️⃣</span>
-          <h3 className="font-bold text-lg">Hub Inspection</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">Merchant prepares items for dispatch through verified fulfillment hubs in Lagos with quality checks.</p>
+
+        <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800">
+          <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
+            <span className="text-[#FF5A00]">02.</span> Inspection & Delivery
+          </h3>
+          <p>The merchant fulfills and ships your package. Once delivered, you have a designated inspection window to verify that the item matches the product description and quality standards.</p>
         </div>
-        <div className="bg-[#16223F] p-6 rounded-3xl border border-slate-800 space-y-3">
-          <span className="text-2xl">3️⃣</span>
-          <h3 className="font-bold text-lg">Secure Release</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">Upon successful delivery confirmation, escrow funds are automatically released to the merchant.</p>
+
+        <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800">
+          <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
+            <span className="text-[#FF5A00]">03.</span> Funds Release
+          </h3>
+          <p>Once you confirm satisfaction, or after the automated inspection timer elapses without dispute, funds are released directly to the merchant's verified settlement account.</p>
         </div>
+      </div>
+
+      <div className="mt-8 pt-6 border-t border-slate-800 flex justify-between items-center">
+        <button
+          type="button"
+          onClick={() => onNavigate('marketplace')}
+          className="bg-[#FF5A00] text-white font-black text-xs uppercase px-6 py-3 rounded-xl hover:bg-[#e04f00] transition-colors cursor-pointer shadow-lg shadow-[#FF5A00]/20"
+        >
+          Explore Marketplace Now
+        </button>
       </div>
     </div>
   );

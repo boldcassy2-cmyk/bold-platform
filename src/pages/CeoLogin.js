@@ -20,7 +20,7 @@ export default function CeoLogin({ onCeoSuccess, setCurrentPage }) {
     setTimeout(() => {
       setLoading(false);
 
-      // Verify email match OR fallback to explicit admin clearance
+      // Verify email match OR fallback to explicit executive clearance
       const isAuthorizedEmail = currentUser?.email?.toLowerCase() === 'boldcassy2@gmail.com';
       const validBadge = formData.ceoBadgeId.trim().toUpperCase().startsWith('BOLD-CEO');
       const validPin = formData.passcode === '2026';
@@ -46,16 +46,16 @@ export default function CeoLogin({ onCeoSuccess, setCurrentPage }) {
   };
 
   return (
-    <div className="max-w-md mx-auto my-12 px-4 text-white text-left">
+    <div className="max-w-md mx-auto my-12 px-4 text-white text-left font-sans">
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
         <div className="text-center space-y-2 mb-8">
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5A00] bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5A00] bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20 font-mono">
             Executive Access Terminal
           </span>
-          <h2 className="text-2xl font-black tracking-tight text-white mt-3">
+          <h2 className="text-2xl font-black tracking-tight text-white mt-3 uppercase">
             CEO Portal Login
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 font-mono">
             Ebigbo Vitus Chukwuebuka • {currentUser?.email || 'boldcassy2@gmail.com'}
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function CeoLogin({ onCeoSuccess, setCurrentPage }) {
               value={formData.ceoBadgeId}
               onChange={(e) => setFormData({ ...formData, ceoBadgeId: e.target.value })}
               required
-              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] outline-none rounded-xl px-4 py-3 text-sm font-mono text-white"
+              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] outline-none rounded-xl px-4 py-3 text-sm font-mono text-white transition"
             />
           </div>
 
@@ -103,14 +103,14 @@ export default function CeoLogin({ onCeoSuccess, setCurrentPage }) {
               value={formData.passcode}
               onChange={(e) => setFormData({ ...formData, passcode: e.target.value })}
               required
-              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] outline-none rounded-xl px-4 py-3 text-sm text-white"
+              className="w-full bg-[#0B132B] border border-slate-800 focus:border-[#FF5A00] outline-none rounded-xl px-4 py-3 text-sm font-mono text-white transition"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#FF5A00] hover:bg-[#e04f00] text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl transition-all shadow-lg cursor-pointer border-none flex items-center justify-center gap-2"
+            className="w-full bg-[#FF5A00] hover:bg-[#e04f00] text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl transition-all shadow-lg shadow-orange-600/20 cursor-pointer border-none flex items-center justify-center gap-2"
           >
             {loading ? 'Authenticating...' : '🔓 Verify & Access CEO Suite'}
           </button>
@@ -120,7 +120,7 @@ export default function CeoLogin({ onCeoSuccess, setCurrentPage }) {
           <button
             type="button"
             onClick={() => setCurrentPage('marketplace')}
-            className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer font-sans"
           >
             ← Return to Public Marketplace
           </button>

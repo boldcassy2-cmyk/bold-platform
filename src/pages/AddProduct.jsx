@@ -1,97 +1,121 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Promotions({ uploadedItems = [], onTriggerCheckout, setCurrentPage, setActiveTxPayload }) {
+export default function Promotions({ 
+  uploadedItems = [], 
+  onTriggerCheckout, 
+  setCurrentPage, 
+  setActiveTxPayload 
+}) {
   // Seller Mode State: 'merchant' (catalog items) vs 'solo' (direct contact / custom items)
   const [sellerMode, setSellerMode] = useState('merchant');
 
-  // Expanded Solo Seller Custom Asset Fields with granular metadata
+  // Search & Selection State
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Safe default item selection based on incoming uploadedItems
+  const activeCatalog = uploadedItems.length > 0 ? uploadedItems : [
+    { id: 'item-1', title: 'HP EliteBook 840 G5 Core i5 8GB RAM 256GB SSD', price: 185000, category: 'electronics_laptops', type: 'product' },
+    { id: 'item-2', title: 'Same-Day Nationwide Dispatch & Package Delivery', price: 4500, category: 'transport_dispatch', type: 'service' }
+  ];
+
+  const [selectedItemId, setSelectedItemId] = useState(activeCatalog[0]?.id || 'item-1');
+
+  // Solo Seller Form State
   const [soloTitle, setSoloTitle] = useState('');
+  const [soloContact, setSoloContact] = useState('');
   const [soloPrice, setSoloPrice] = useState(15000);
   const [soloCategory, setSoloCategory] = useState('electronics_laptops');
   const [soloSubCategory, setSoloSubCategory] = useState('');
-  const [soloContact, setSoloContact] = useState(''); // Direct phone or WhatsApp contact
-  
-  // Detailed attributes for custom assets (e.g., Laptops, Fashion, Real Estate, Services)
+
+  // Item Specs State
   const [itemSpecs, setItemSpecs] = useState({
-    modelSize: '',
     ramMemory: '',
     storageCapacity: '',
-    condition: 'Brand New', // Brand New, Foreign Used (Tokunbo), Nigerian Used
-    location: '',
-    experienceLevel: '', // For jobs / tutors
-    serviceType: ''
+    modelSize: '',
+    location: ''
   });
 
-  // Comprehensive fallback catalog with rich categories & subcategories
-  const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
-    { 
-      id: 'p1', 
-      title: 'HP EliteBook 840 G6 - Core i7, 16GB RAM, 512GB SSD', 
-      type: 'product', 
-      price: 450000, 
-      category: 'electronics_laptops',
-      specs: { modelSize: '14-inch', ramMemory: '16GB', storageCapacity: '512GB SSD', condition: 'Foreign Used (Tokunbo)' }
-    },
-    { 
-      id: 'p2', 
-      title: 'Professional Home & Office Plumbing & Mechanical Repairs', 
-      type: 'service', 
-      price: 25000, 
-      category: 'mechanic_artisans',
-      specs: { serviceType: 'Emergency Repair & Installation', location: 'Lagos Mainland' }
-    },
-    { 
-      id: 'p3', 
-      title: 'Same-Day Interstate Dispatch & Logistics Delivery', 
-      type: 'service', 
-      price: 5000, 
-      category: 'transport_dispatch',
-      specs: { serviceType: 'Express Package Delivery' }
-    },
-    { 
-      id: 'p4', 
-      title: 'Unisex Vintage Oversized Streetwear Hoodie (Adult & Teens)', 
-      type: 'product', 
-      price: 18000, 
-      category: 'fashion_apparel',
-      specs: { modelSize: 'L / XL / XXL', condition: 'Brand New' }
-    },
-    { 
-      id: 'p5', 
-      title: 'Verified 3-Bedroom Luxury Apartment Lease in Lekki Phase 1', 
-      type: 'real_estate', 
-      price: 3500000, 
-      category: 'real_estate',
-      specs: { location: 'Lekki Phase 1, Lagos' }
-    }
-  ];
+  // Campaign Budget & Timeline State
+  const [dailyBudget, setDailyBudget] = useState(5000);
+  const [campaignDays, setCampaignDays] = useState(7);
+  const [adPlacement, setAdPlacement] = useState('trending');
 
-  // Asset Management States
-  const [selectedItemId, setSelectedItemId] = useState(defaultItemsList[0]?.id || null);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Budget Matrix States
-  const [dailyBudget, setDailyBudget] = useState(5000); 
-  const [campaignDays, setCampaignDays] = useState(7);    
-  const [adPlacement, setAdPlacement] = useState('trending'); 
-  
-  // Real-time Traffic Multiplier Matrix
+  // Placement Multipliers Configuration
   const placementMultipliers = {
-    sidebar: { name: 'Contextual Sidebar Placement', multiplier: 12, conversions: 0.02 },
-    trending: { name: 'Main Marketplace Trending Ribbon', multiplier: 25, conversions: 0.05 },
-    broadcast: { name: 'Direct Push Notification Broadcast', multiplier: 45, conversions: 0.08 }
+    sidebar: { name: 'Sidebar Feed Node', multiplier: 120, conversions: 0.03 },
+    trending: { name: 'Trending Ribbon Banner', multiplier: 250, conversions: 0.05 },
+    broadcast: { name: 'Direct Push Broadcast', multiplier: 450, conversions: 0.08 }
   };
 
   // Comprehensive Professional Categories and Subcategories Master List
   const marketplaceCategories = [
     {
       id: 'electronics_laptops',
-      label: '💻 Electronics, Laptops & Gadgets',
+      label: '💻 Laptops, Phones & Gadgets',
       subcategories: [
-        { id: 'laptops_windows', label: 'Windows Laptops (HP, Dell, Lenovo, Asus)' },
+        { id: 'laptops_windows', label: 'Windows Laptops (HP, Dell, Lenovo, Asus, etc.)' },
         { id: 'laptops_macbook', label: 'Apple MacBooks (Air / Pro)' },
-        { id: 'phones_tablets', label: 'Smartphones & Tablets (iPhone, Samsung, etc.)' },
-        { id: 'gadgets_accessories', label: 'Gaming Consoles, Audio, Chargers & Accessories' }
+        { id: 'phones_smartphones', label: 'Smartphones & Mobile Phones (iPhone, Samsung, Tecno, Infinix, etc.)' },
+        { id: 'phones_tablets', label: 'Tablets, iPads & E-Readers' },
+        { id: 'gadgets_accessories', label: 'Gaming Consoles, Audio, Power Banks & Accessories' }
+      ]
+    },
+    {
+      id: 'gift_cards',
+      label: '💳 Gift Cards & Digital Vouchers',
+      subcategories: [
+        { id: 'apple_itunes_gc', label: 'Apple / iTunes Gift Cards' },
+        { id: 'google_play_gc', label: 'Google Play Gift Cards' },
+        { id: 'steam_amazon_gc', label: 'Steam, Amazon & Razer Gold Cards' },
+        { id: 'crypto_vouchers', label: 'Verified Digital Vouchers & E-Currency' }
+      ]
+    },
+    {
+      id: 'motor_parts_vehicles',
+      label: '🚗 Motor Parts, Motorcycles & Bicycles',
+      subcategories: [
+        { id: 'motor_spare_parts', label: 'Car Spare Parts (Engines, Shock Absorbers, Brakes, Tyres)' },
+        { id: 'motorcycles_tricycles', label: 'Motorcycles, Okada & Tricycles (Keke Napep)' },
+        { id: 'bicycles_scooters', label: 'Bicycles, Electric Scooters & Cycling Gear' },
+        { id: 'cars_vehicles', label: 'Used & Brand New Cars (Tokunbo & Nigerian Used)' }
+      ]
+    },
+    {
+      id: 'building_materials',
+      label: '🏗️ Building Materials & Construction',
+      subcategories: [
+        { id: 'cement_iron_rods', label: 'Cement, Iron Rods, Roofing Sheets & Structural Steel' },
+        { id: 'tiles_sanitary', label: 'Tiles, Marble, Granite, Toilets & Bathroom Fittings' },
+        { id: 'paints_wood_doors', label: 'Paints, Plaster of Paris (POP), Doors & Timber' },
+        { id: 'solar_electrical', label: 'Solar Panels, Inverters, Generators & Electrical Wiring' }
+      ]
+    },
+    {
+      id: 'foodstuffs_provisions',
+      label: '🛒 Foodstuffs, Agro & Provisions Business',
+      subcategories: [
+        { id: 'foodstuffs_tubers', label: 'Raw Foodstuffs (Garri, Rice, Beans, Yam, Palm Oil, Spices)' },
+        { id: 'provisions_supermarket', label: 'Wholesale & Retail Provisions (Beverages, Toiletries, Canned Goods)' },
+        { id: 'frozen_foods', label: 'Frozen Foods (Chicken, Turkey, Fish, Cold Room Supplies)' },
+        { id: 'fresh_farm_produce', label: 'Fresh Fruits, Vegetables & Agro Products' }
+      ]
+    },
+    {
+      id: 'pets_animals_business',
+      label: '🐾 Pets, Animals & Livestock Business',
+      subcategories: [
+        { id: 'dogs_pets', label: 'Dogs, Puppies, Cats & Household Pets' },
+        { id: 'livestock_poultry', label: 'Livestock & Poultry (Broilers, Layers, Turkeys, Goats, Pigs)' },
+        { id: 'pet_foods_accessories', label: 'Pet Food, Cages, Aquariums & Veterinary Supplies' }
+      ]
+    },
+    {
+      id: 'schools_education',
+      label: '🏫 Schools, Training Centers & Education',
+      subcategories: [
+        { id: 'nursery_primary_secondary', label: 'Nursery, Primary & Secondary Schools (Admissions & Info)' },
+        { id: 'vocational_training_centers', label: 'Vocational Training Centers (Coding, Tailoring, Catering, Tech)' },
+        { id: 'tutorials_lessons', label: 'Exam Prep Centers (WAEC, JAMB, IELTS, IJMB)' }
       ]
     },
     {
@@ -142,15 +166,6 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
       ]
     },
     {
-      id: 'education_books',
-      label: '📚 Digital Books, Physical Books & Tutors',
-      subcategories: [
-        { id: 'digital_books', label: 'E-Books, Online Courses & PDF Guides' },
-        { id: 'physical_books', label: 'Textbooks, Novels & Educational Materials' },
-        { id: 'online_offline_tutors', label: 'Private Tutors (Home Lessons & Online Coaching)' }
-      ]
-    },
-    {
       id: 'jobs_employment',
       label: '💼 Jobs, Vacancies & Hiring (Job Seekers & Employers)',
       subcategories: [
@@ -187,17 +202,17 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
     }
   }, []);
 
-  // Filter items based on user search string
-  const filteredItems = defaultItemsList.filter(item => 
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter active items based on user search string (handles both 'title' and 'name' fields securely)
+  const filteredItems = activeCatalog.filter(item => {
+    const itemTitle = item.title || item.name || '';
+    return itemTitle.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
-  const selectedMerchantAsset = defaultItemsList.find(item => item.id === selectedItemId) || defaultItemsList[0];
+  const selectedMerchantAsset = activeCatalog.find(item => item.id === selectedItemId) || activeCatalog[0];
 
   // Resolve current active asset details based on mode
-  const currentAssetTitle = sellerMode === 'merchant' 
-    ? (selectedMerchantAsset ? selectedMerchantAsset.title : 'Selected Merchant Item')
-    : (soloTitle.trim() || 'Solo Direct Offer');
+  const rawAssetTitle = selectedMerchantAsset?.title || selectedMerchantAsset?.name || 'Selected Merchant Item';
+  const currentAssetTitle = sellerMode === 'merchant' ? rawAssetTitle : (soloTitle.trim() || 'Solo Direct Offer');
 
   const currentAssetContact = sellerMode === 'solo' ? soloContact.trim() : 'Store Catalog Official';
 
@@ -261,7 +276,6 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
         ]
       },
       callback: function(response) {
-        // Payment successful callback handler
         const campaignPayload = {
           id: response.reference,
           title: `Campaign Initiated for "${currentAssetTitle}"! Total billing matrix of ₦${computedTotal.toLocaleString()} verified via Paystack escrow`,
@@ -282,8 +296,6 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             specs: sellerMode === 'solo' ? itemSpecs : {}
           }
         };
-
-        console.log(`[Paystack Success] Reference: ${response.reference}`);
 
         if (typeof onTriggerCheckout === 'function') {
           onTriggerCheckout(campaignPayload);
@@ -365,6 +377,9 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
             {filteredItems.map((item) => {
               const isSelected = selectedItemId === item.id;
+              const displayTitle = item.title || item.name || 'Unnamed Product';
+              const displayPrice = Number(item.price || item.amount || 0);
+
               return (
                 <div
                   key={item.id}
@@ -383,10 +398,10 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
                   <div className="pr-12">
                     <h4 className="text-xs font-bold line-clamp-2 text-slate-100">
-                      {item.title}
+                      {displayTitle}
                     </h4>
                     <p className="text-[#FF5A00] font-mono text-xs font-bold mt-2">
-                      ₦{Number(item.price).toLocaleString()}
+                      ₦{displayPrice.toLocaleString()}
                     </p>
                   </div>
 
@@ -407,7 +422,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
         </div>
       )}
 
-      {/* SOLO SELLER DIRECT CONTACT & GRANULAR OFFER FORM: ONLY SHOWN FOR SOLO SELLERS */}
+      {/* SOLO SELLER DIRECT CONTACT & FORM CONTAINER */}
       {sellerMode === 'solo' && (
         <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 animate-fadeIn">
           <div className="border-b border-slate-800 pb-3">
@@ -460,89 +475,6 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 ))}
               </select>
             </div>
-          </div>
-
-          {/* DYNAMIC SUB-CATEGORY SELECTOR */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/60">
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Subcategory</label>
-              <select
-                value={soloSubCategory}
-                onChange={(e) => setSoloSubCategory(e.target.value)}
-                className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
-              >
-                <option value="">Select Subcategory...</option>
-                {marketplaceCategories
-                  .find(c => c.id === soloCategory)
-                  ?.subcategories.map(sub => (
-                    <option key={sub.id} value={sub.id}>{sub.label}</option>
-                  ))
-                }
-              </select>
-            </div>
-
-            {/* CONDITIONAL SPEC BUILDERS FOR LAPTOPS & TECH */}
-            {soloCategory === 'electronics_laptops' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">RAM Memory Size</label>
-                  <select 
-                    value={itemSpecs.ramMemory}
-                    onChange={(e) => setItemSpecs({...itemSpecs, ramMemory: e.target.value})}
-                    className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
-                  >
-                    <option value="">Select RAM...</option>
-                    <option value="4GB RAM">4GB RAM</option>
-                    <option value="8GB RAM">8GB RAM</option>
-                    <option value="16GB RAM">16GB RAM</option>
-                    <option value="32GB+ RAM">32GB+ RAM</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Storage Capacity</label>
-                  <select 
-                    value={itemSpecs.storageCapacity}
-                    onChange={(e) => setItemSpecs({...itemSpecs, storageCapacity: e.target.value})}
-                    className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
-                  >
-                    <option value="">Select Storage...</option>
-                    <option value="128GB SSD">128GB SSD</option>
-                    <option value="256GB SSD">256GB SSD</option>
-                    <option value="512GB SSD">512GB SSD</option>
-                    <option value="1TB+ SSD / HDD">1TB+ SSD / HDD</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {/* CONDITIONAL CONDITION FIELD FOR PHYSICAL ITEMS & FASHION */}
-            {(soloCategory === 'fashion_apparel' || soloCategory === 'beauty_hair' || soloCategory === 'electronics_laptops') && (
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Item Condition & Size Info</label>
-                <input 
-                  type="text"
-                  placeholder="e.g., Brand New / Tokunbo / Sizes S, M, L, XL"
-                  value={itemSpecs.modelSize}
-                  onChange={(e) => setItemSpecs({...itemSpecs, modelSize: e.target.value})}
-                  className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
-                />
-              </div>
-            )}
-
-            {/* CONDITIONAL LOCATION FIELD FOR REAL ESTATE / MECHANICS / DISPATCH */}
-            {(soloCategory === 'real_estate' || soloCategory === 'mechanic_artisans' || soloCategory === 'transport_dispatch') && (
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Service Location / Base</label>
-                <input 
-                  type="text"
-                  placeholder="e.g., Ikeja, Lekki, Abuja, Port Harcourt"
-                  value={itemSpecs.location}
-                  onChange={(e) => setItemSpecs({...itemSpecs, location: e.target.value})}
-                  className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-3 py-3 focus:outline-none focus:border-[#FF5A00]"
-                />
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -642,11 +574,6 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 {sellerMode === 'solo' && soloContact && (
                   <span className="text-[10px] text-[#FF5A00] block mt-1 font-semibold">📞 Direct Contact: {soloContact}</span>
                 )}
-                {sellerMode === 'solo' && (itemSpecs.ramMemory || itemSpecs.modelSize || itemSpecs.location) && (
-                  <span className="text-[9px] text-slate-400 block mt-1">
-                    Specs: {[itemSpecs.ramMemory, itemSpecs.storageCapacity, itemSpecs.modelSize, itemSpecs.location].filter(Boolean).join(' | ')}
-                  </span>
-                )}
               </div>
 
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
@@ -659,29 +586,33 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
               <div className="bg-[#0B132B] p-3.5 rounded-xl border border-slate-900 flex justify-between items-center">
                 <div>
-                  <span className="text-[9px] text-slate-400 font-black uppercase block">Target Clicks</span>
-                  <span className="text-xs font-semibold text-slate-300 font-mono">Conversion index</span>
+                  <span className="text-[9px] text-slate-400 font-black uppercase block">Estimated Clicks / Leads</span>
+                  <span className="text-xs font-semibold text-slate-300 font-mono">Conversion Rate ({(activePlacement.conversions * 100)}%)</span>
                 </div>
-                <span className="text-xl font-black text-emerald-400 font-mono">≈ {estimatedClicks.toLocaleString()}</span>
+                <span className="text-xl font-black text-emerald-400 font-mono">{estimatedClicks.toLocaleString()}+</span>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-800 space-y-3">
-            <div className="flex justify-between items-baseline">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Investment:</span>
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="flex justify-between items-end">
+              <div>
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Total Investment</span>
+                <span className="text-[10px] text-slate-500">{campaignDays} days @ ₦{dailyBudget.toLocaleString()}/day</span>
+              </div>
               <span className="text-2xl font-black text-[#FF5A00] font-mono">₦{totalInvestment.toLocaleString()}</span>
             </div>
-            
-            <button 
+
+            <button
               type="button"
               onClick={handleLaunchCampaign}
-              className="w-full bg-[#FF5A00] hover:brightness-110 text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none shadow-lg cursor-pointer transition duration-200"
+              className="w-full py-4 bg-[#FF5A00] hover:bg-orange-600 text-white font-bold rounded-2xl shadow-lg shadow-orange-600/30 transition cursor-pointer uppercase text-xs tracking-wider font-mono flex items-center justify-center gap-2"
             >
-              🚀 Pay & Launch Campaign (Paystack)
+              <span>🚀 Launch Campaign via Paystack</span>
             </button>
           </div>
         </div>
+
       </div>
     </main>
   );

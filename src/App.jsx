@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { db, auth } from './firebase'; 
-import { collection, onSnapshot, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // Core UI Components
 import Home from './pages/Home';
 import Footer from './components/Footer';
 import RoleGuard from './components/RoleGuard';
+
 
 // Dynamic Lazy Imports
 const AuthPortal = lazy(() => import('./pages/AuthPortal'));
@@ -16,6 +17,7 @@ const Promotions = lazy(() => import('./pages/Promotions'));
 const EscrowTracker = lazy(() => import('./pages/EscrowTracker'));
 const CeoDashboard = lazy(() => import('./pages/CeoDashboard'));
 const EscrowDashboard = lazy(() => import('./pages/EscrowDashboard'));
+
 const EscrowProcessor = lazy(() => import('./pages/EscrowProcessor'));
 const EscrowCheckout = lazy(() => import('./pages/EscrowCheckout'));
 const CartSummaryPage = lazy(() => import('./pages/CartSummaryPage'));
@@ -28,6 +30,7 @@ const AdminActivityMonitor = lazy(() => import('./pages/AdminActivityMonitor'));
 const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
 const AutomotivePort = lazy(() => import('./pages/AutomotivePort'));
 const HowEscrowWorks = lazy(() => import('./pages/HowEscrowWorks'));
+
 const MerchantMatrix = lazy(() => import('./pages/MerchantMatrix'));
 const ApplyAsVendor = lazy(() => import('./pages/ApplyAsVendor'));
 const EscrowGuidelines = lazy(() => import('./pages/EscrowGuidelines'));
@@ -57,20 +60,19 @@ const INITIAL_TRANSACTIONS = [
 ];
 
 export default function App() {
+  // 1. Navigation & UI States
   const [currentPage, setCurrentPage] = useState('home');
-  const [activeTxPayload, setActiveTxPayload] = useState(null);
-  const [globalItems, setGlobalItems] = useState([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
   const [cartItems, setCartItems] = useState(() => {
     try {
-      const savedCart = localStorage.getItem('bold_cart_items');
-      return savedCart ? JSON.parse(savedCart) : [];
+      const saved = localStorage.getItem('bold_cart_items');
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
     }
   });
-
+  const [activeTxPayload, setActiveTxPayload] = useState(null);
+  const [globalItems, setGlobalItems] = useState(FALLBACK_INVENTORY);
   const [loading, setLoading] = useState(true);
   const [globalTransactions, setGlobalTransactions] = useState(INITIAL_TRANSACTIONS);
   
@@ -102,7 +104,7 @@ export default function App() {
       await addDoc(collection(db, 'app_telemetry'), {
         userId: user?.uid || 'anonymous',
         email: user?.email || 'guest',
-        action: actionType, // 'PAGE_VIEW', 'USER_LOGIN', 'USER_LOGOUT', 'ADD_TO_CART', 'CHECKOUT_INITIATE', 'CHECKOUT_ABANDONMENT', 'CHECKOUT_FAIL', 'CHECKOUT_SUCCESS'
+        action: actionType,
         details,
         timestamp: serverTimestamp(),
         clientLocalDateTime: new Date().toISOString()
@@ -291,7 +293,6 @@ export default function App() {
     setCurrentPage('escrow-checkout');
   }, [currentUser, logAppActivity]);
 
-  // Capture Checkout Abandonment / Failure
   const handleCancelCheckout = useCallback(() => {
     logAppActivity(currentUser, 'CHECKOUT_ABANDONMENT', {
       itemsCount: cartItems.length,
@@ -305,7 +306,6 @@ export default function App() {
   const handleAddNewProduct = async (newProductPayload) => {
     const cloudPayload = {
       ...newProductPayload,
-      id: `prod-${Date.now()}`,
       merchantId: currentUser?.uid || 'anonymous',
       dateAdded: new Date().toISOString(),
       promotionSettings: newProductPayload?.promotionSettings || { adPlacement: null, dailyBudget: 0, campaignDays: 0 }
@@ -319,11 +319,30 @@ export default function App() {
       logAppActivity(currentUser, 'PRODUCT_LIST_SUCCESS', { title: cloudPayload.title });
     } catch (error) {
       logAppActivity(currentUser, 'PRODUCT_LIST_FAIL', { title: cloudPayload.title, error: error.message });
-      setGlobalItems((prev) => sortInventoryPriorities([cloudPayload, ...prev]));
+      const localId = `prod-${Date.now()}`;
+      setGlobalItems((prev) => sortInventoryPriorities([{ ...cloudPayload, id: localId, docId: localId }, ...prev]));
     } finally {
       setCurrentPage('marketplace');
     }
   };
+
+  const handleDeleteListing = async (listingId) => {
+    try {
+      if (db && listingId && !listingId.startsWith('fb-')) {
+        await deleteDoc(doc(db, 'inventory', listingId));
+      }
+      setGlobalItems((prev) => prev.filter(item => item.id !== listingId && item.docId !== listingId));
+      logAppActivity(currentUser, 'PRODUCT_DELETE', { listingId });
+    } catch (error) {
+      console.error("Error deleting listing:", error);
+    }
+  };
+
+  const userListings = useMemo(() => {
+    if (!currentUser) return [];
+    if (userRole === 'CEO' || userRole === 'STAFF') return globalItems;
+    return globalItems.filter(item => item.merchantId === currentUser.uid || item.merchantId === 'anonymous');
+  }, [globalItems, currentUser, userRole]);
 
   const HEADER_NAV = [
     { id: 'home', label: '🏠 Home' },
@@ -338,7 +357,6 @@ export default function App() {
 
   const FOOTER_NAV = [
     { id: 'marketplace', label: 'Marketplace' },
-    { id: 'marketplace', label: 'Discover Stores' },
     { id: 'streetwear', label: 'Streetwear Node' },
     { id: 'automotive', label: 'Automotive Port' },
     { id: 'escrow-how', label: 'How Escrow Works' },
@@ -370,7 +388,10 @@ export default function App() {
         <CustomerDashboard 
           user={currentUser}
           orders={globalTransactions}
+          userListings={userListings}
           setCurrentPage={setCurrentPage}
+          onOpenProductUpload={() => setCurrentPage('addproduct')}
+          onDeleteListing={handleDeleteListing}
         />
       );
     }
@@ -520,6 +541,14 @@ export default function App() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#070D1F] flex items-center justify-center text-white font-mono text-xs">
+        Initializing Bold Dot NG Gateway...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B132B] text-white antialiased font-sans pb-12 selection:bg-[#FF5A00] selection:text-white flex flex-col justify-between">
       <div>
@@ -547,7 +576,7 @@ export default function App() {
                 }}
                 className="text-xs font-black px-3 py-2 rounded-xl bg-slate-900 text-slate-200 border border-slate-700 flex items-center gap-1.5"
               >
-                🛒 {totalCartCount > 0 && <span className="bg-[#FF5A00] text-white text-[10px] px-1.5 py-0.2 rounded-full">{totalCartCount}</span>}
+                🛒 {totalCartCount > 0 && <span className="bg-[#FF5A00] text-white text-[10px] px-1.5 py-0.5 rounded-full">{totalCartCount}</span>}
               </button>
               <button
                 type="button"
@@ -723,35 +752,22 @@ export default function App() {
           <div className="bg-[#0f1936] border-b border-slate-800 px-6 py-2 sticky top-[78px] z-40 shadow-md">
             <button 
               type="button" 
-              onClick={() => {
-                setActiveTxPayload(null);
-                setCurrentPage('marketplace');
-              }} 
-              className="bg-transparent border-none text-slate-300 text-xs font-bold flex items-center gap-2 cursor-pointer hover:text-[#FF5A00] transition-colors"
+              onClick={() => setCurrentPage('home')}
+              className="text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
             >
-              ← Back to Marketplace
+              &larr; Back to Main Hub
             </button>
           </div>
         )}
 
-        <main className="pt-4 px-2">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 space-y-3">
-              <div className="w-10 h-10 border-4 border-[#FF5A00] border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-xs font-mono text-slate-400 tracking-widest uppercase">
-                Synchronizing with Bold Cloud Core...
-              </p>
+        <main className="max-w-7xl mx-auto px-4 py-6 w-full">
+          <Suspense fallback={
+            <div className="py-20 text-center font-mono text-xs text-slate-400">
+              Loading Module View...
             </div>
-          ) : (
-            <Suspense fallback={
-              <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                <div className="w-8 h-8 border-4 border-[#FF5A00] border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Loading Section...</p>
-              </div>
-            }>
-              {renderCurrentView()}
-            </Suspense>
-          )}
+          }>
+            {renderCurrentView()}
+          </Suspense>
         </main>
       </div>
 
