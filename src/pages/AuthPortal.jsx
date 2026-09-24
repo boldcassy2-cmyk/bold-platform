@@ -19,24 +19,23 @@ import {
   deleteDoc, 
   serverTimestamp, 
   query, 
+  where,
   orderBy 
 } from 'firebase/firestore';
-import { auth, db } from '../firebase'; // Update path to your firebase initialization file
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { auth, db, storage } from '../firebase';
 
 export default function AuthPortal() {
-  // Auth & Session States
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [isSignup, setIsSignup] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Signup Channel Choice: 'email' | 'whatsapp' | 'sms'
   const [verifyChannel, setVerifyChannel] = useState('email');
   const [otpInput, setOtpInput] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
 
-  // Form Fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -44,28 +43,26 @@ export default function AuthPortal() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Password Visibility Toggles
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Status & Feedback Messages
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Dashboard Navigation: 'marketplace' | 'my-products' | 'upload'
   const [activeTab, setActiveTab] = useState('marketplace');
 
-  // Product Form Fields
   const [products, setProducts] = useState([]);
+  const [myProducts, setMyProducts] = useState([]);
   const [productName, setProductName] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productCategory, setProductCategory] = useState('General Goods');
   const [productDescription, setProductDescription] = useState('');
-  const [productImage, setProductImage] = useState('');
+  const [productImageFile, setProductImageFile] = useState(null);
   const [editingProductId, setEditingProductId] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState('');
 
-  // 1. PERSISTENT SESSION LISTENER
+  // PERSISTENT SESSION LISTENER & DATA SYNC
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -75,31 +72,39 @@ export default function AuthPortal() {
         if (userDoc.exists()) {
           setUserData(userDoc.data());
         }
-        fetchMarketplaceProducts();
+        await fetchAllData(user.uid);
       } else {
         setCurrentUser(null);
         setUserData(null);
+        setProducts([]);
+        setMyProducts([]);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Fetch all products from Firestore Marketplace
-  const fetchMarketplaceProducts = async () => {
+  const fetchAllData = async (uid) => {
     try {
-      const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const items = [];
-      querySnapshot.forEach((docSnap) => {
-        items.push({ id: docSnap.id, ...docSnap.data() });
+      const qAll = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+      const allSnapshot = await getDocs(qAll);
+      const allItems = [];
+      allSnapshot.forEach((docSnap) => {
+        allItems.push({ id: docSnap.id, ...docSnap.data() });
       });
-      setProducts(items);
+      setProducts(allItems);
+
+      const qMine = query(collection(db, 'products'), where('ownerUid', '==', uid));
+      const mineSnapshot = await getDocs(qMine);
+      const mineItems = [];
+      mineSnapshot.forEach((docSnap) => {
+        mineItems.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setMyProducts(mineItems);
     } catch (err) {
-      console.error('Error fetching marketplace products:', err);
+      console.error('Error fetching data:', err);
     }
   };
 
-  // 2. HANDLE SIGNUP SUBMISSION
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -109,19 +114,16 @@ export default function AuthPortal() {
       setErrorMsg('Please enter your legal first and last name.');
       return;
     }
-
     if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match. Please check and try again.');
+      setErrorMsg('Passwords do not match.');
       return;
     }
-
     if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters long.');
+      setErrorMsg('Password must be at least 6 characters.');
       return;
     }
 
     setLoading(true);
-
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -147,27 +149,20 @@ export default function AuthPortal() {
 
       if (verifyChannel === 'email') {
         await sendEmailVerification(user);
-        setSuccessMsg('Account created! Verification link dispatched to your email inbox.');
+        setSuccessMsg('Account created! Verification link sent to your email.');
       } else {
         const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
         setGeneratedOtp(mockOtp);
-        setSuccessMsg(`[Simulation] OTP code sent via ${verifyChannel.toUpperCase()} to ${phone}: ${mockOtp}`);
+        setSuccessMsg(`[Simulation] OTP sent via ${verifyChannel.toUpperCase()}: ${mockOtp}`);
       }
-
       setLoading(false);
       setIsVerifying(true);
-
     } catch (error) {
       setLoading(false);
-      let message = error.message.replace('Firebase: ', '');
-      if (error.code === 'auth/email-already-in-use') {
-        message = 'This email address is already registered. Please sign in instead.';
-      }
-      setErrorMsg(message);
+      setErrorMsg(error.message.replace('Firebase: ', ''));
     }
   };
 
-  // 3. VERIFY OTP OR EMAIL STATUS
   const handleVerifySubmission = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -179,28 +174,27 @@ export default function AuthPortal() {
         if (auth.currentUser.emailVerified) {
           await updateDoc(doc(db, 'users', auth.currentUser.uid), { verified: true });
           setUserData(prev => ({ ...prev, verified: true }));
-          setSuccessMsg('Email verified successfully! Welcome to Bold.ng.');
+          setSuccessMsg('Email verified successfully!');
           setIsVerifying(false);
         } else {
-          setErrorMsg('Email not verified yet. Please click the link sent to your inbox.');
+          setErrorMsg('Email not verified yet. Please check your inbox.');
         }
       } else {
         if (otpInput.trim() === generatedOtp) {
           await updateDoc(doc(db, 'users', auth.currentUser.uid), { verified: true });
           setUserData(prev => ({ ...prev, verified: true }));
-          setSuccessMsg('Contact number verified successfully! Welcome.');
+          setSuccessMsg('Contact number verified successfully!');
           setIsVerifying(false);
         } else {
-          setErrorMsg('Invalid OTP code entered. Please check and try again.');
+          setErrorMsg('Invalid OTP code.');
         }
       }
     } catch (err) {
-      setErrorMsg('Verification check failed. Please retry.');
+      setErrorMsg('Verification failed.');
     }
     setLoading(false);
   };
 
-  // 4. HANDLE LOGIN SUBMISSION
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -211,7 +205,6 @@ export default function AuthPortal() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
-
       if (userDoc.exists()) {
         setUserData(userDoc.data());
       }
@@ -219,47 +212,48 @@ export default function AuthPortal() {
       setSuccessMsg('Login successful!');
     } catch (error) {
       setLoading(false);
-      let message = error.message.replace('Firebase: ', '');
-      if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(error.code)) {
-        message = 'Invalid email or password. Please check your credentials.';
-      }
-      setErrorMsg(message);
+      setErrorMsg('Invalid email or password.');
     }
   };
 
-  // 5. HANDLE PASSWORD RESET
   const handleForgotPasswordSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
     if (!email.trim()) {
-      setErrorMsg('Please enter your account email address first.');
+      setErrorMsg('Please enter your account email.');
       return;
     }
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email.trim());
       setLoading(false);
-      setSuccessMsg('Password reset instructions have been dispatched to your email.');
+      setSuccessMsg('Password reset instructions sent to your email.');
     } catch (error) {
       setLoading(false);
       setErrorMsg(error.message.replace('Firebase: ', ''));
     }
   };
 
-  // 6. PRODUCT MANAGEMENT
+  // PRODUCT MANAGEMENT & FIREBASE STORAGE UPLOAD HANDLER
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    setSuccessMsg('');
-
-    if (!productName || !productPrice) {
-      setErrorMsg('Please provide product name and price.');
-      return;
-    }
-
     setLoading(true);
     try {
+      let finalImageUrl = existingImageUrl;
+
+      // If user picked a new file, upload it to Firebase Storage
+      if (productImageFile) {
+        const imageRef = ref(storage, `product_images/${currentUser.uid}_${Date.now()}_${productImageFile.name}`);
+        const snapshot = await uploadBytes(imageRef, productImageFile);
+        finalImageUrl = await getDownloadURL(snapshot.ref);
+      } else if (!editingProductId && !finalImageUrl) {
+        setErrorMsg('Please select a product image file.');
+        setLoading(false);
+        return;
+      }
+
       if (editingProductId) {
         const productRef = doc(db, 'products', editingProductId);
         await updateDoc(productRef, {
@@ -267,7 +261,7 @@ export default function AuthPortal() {
           price: Number(productPrice),
           category: productCategory,
           description: productDescription,
-          image: productImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+          image: finalImageUrl
         });
         setSuccessMsg('Product updated successfully!');
         setEditingProductId(null);
@@ -277,25 +271,47 @@ export default function AuthPortal() {
           price: Number(productPrice),
           category: productCategory,
           description: productDescription,
-          image: productImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500',
+          image: finalImageUrl,
           ownerUid: currentUser.uid,
-          ownerName: `${userData?.firstName} ${userData?.lastName}`,
+          ownerName: `${userData?.firstName || 'Vendor'} ${userData?.lastName || ''}`,
+          isPromoted: false,
           createdAt: serverTimestamp()
         });
-        setSuccessMsg('Product uploaded successfully to marketplace!');
+        setSuccessMsg('Product uploaded successfully with permanent storage!');
       }
 
       setProductName('');
       setProductPrice('');
       setProductDescription('');
-      setProductImage('');
+      setProductImageFile(null);
+      setExistingImageUrl('');
       setLoading(false);
-      fetchMarketplaceProducts();
+      await fetchAllData(currentUser.uid);
       setActiveTab('my-products');
     } catch (err) {
       setLoading(false);
-      setErrorMsg('Failed to save product. Please try again.');
+      setErrorMsg('Failed to save product or upload image.');
+      console.error(err);
     }
+  };
+
+  const handlePromoteProduct = async (product) => {
+    const confirmPromote = window.confirm(`Promote "${product.name}" for ₦1,000 ad boost fee?`);
+    if (!confirmPromote) return;
+
+    setLoading(true);
+    try {
+      const productRef = doc(db, 'products', product.id);
+      await updateDoc(productRef, {
+        isPromoted: true,
+        promotedAt: serverTimestamp()
+      });
+      setSuccessMsg(`🚀 Successfully promoted "${product.name}" for ₦1,000! Your listing is now boosted.`);
+      await fetchAllData(currentUser.uid);
+    } catch (err) {
+      setErrorMsg('Promotion payment simulation failed. Please try again.');
+    }
+    setLoading(false);
   };
 
   const handleEditProduct = (item) => {
@@ -304,16 +320,22 @@ export default function AuthPortal() {
     setProductPrice(item.price);
     setProductCategory(item.category);
     setProductDescription(item.description);
-    setProductImage(item.image);
+    setExistingImageUrl(item.image);
+    setProductImageFile(null);
     setActiveTab('upload');
   };
 
-  const handleDeleteProduct = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+  const handleDeleteProduct = async (item) => {
+    if (window.confirm('Are you sure you want to delete this product? The image and listing will be permanently removed.')) {
       try {
-        await deleteDoc(doc(db, 'products', id));
-        setSuccessMsg('Product deleted successfully.');
-        fetchMarketplaceProducts();
+        if (item.image && item.image.includes('firebasestorage.googleapis.com')) {
+          const imageRef = ref(storage, item.image);
+          await deleteObject(imageRef).catch((err) => console.log('Storage delete notice:', err));
+        }
+
+        await deleteDoc(doc(db, 'products', item.id));
+        setSuccessMsg('Product and image permanently deleted.');
+        await fetchAllData(currentUser.uid);
       } catch (err) {
         setErrorMsg('Failed to delete product.');
       }
@@ -322,17 +344,12 @@ export default function AuthPortal() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    setCurrentUser(null);
-    setUserData(null);
   };
 
-  // =========================================================
-  // RENDER: DASHBOARD VIEW
-  // =========================================================
+  // DASHBOARD VIEW
   if (currentUser) {
     return (
       <div className="min-h-screen bg-[#070D1F] text-white p-6 font-sans">
-        {/* Top Header Navbar */}
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center bg-[#16223F] border border-slate-700 p-4 rounded-2xl mb-6 shadow-xl gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#FF5A00] rounded-xl flex items-center font-black text-lg justify-center">B</div>
@@ -353,7 +370,7 @@ export default function AuthPortal() {
               onClick={() => setActiveTab('my-products')} 
               className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'my-products' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] text-slate-300 hover:bg-slate-800'}`}
             >
-              📦 My Uploaded Products
+              📦 My Uploaded Products ({myProducts.length})
             </button>
             <button 
               onClick={handleLogout} 
@@ -364,29 +381,30 @@ export default function AuthPortal() {
           </div>
         </div>
 
-        {/* Status Alerts */}
         <div className="max-w-6xl mx-auto mb-4">
           {errorMsg && <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-red-400 text-xs font-mono">⚠️ {errorMsg}</div>}
           {successMsg && <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-400 text-xs font-mono">✅ {successMsg}</div>}
         </div>
 
-        {/* MAIN CONTAINER CONTENT SWITCHER */}
         <div className="max-w-6xl mx-auto">
-
-          {/* TAB 1: PUBLIC MARKETPLACE */}
           {activeTab === 'marketplace' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-black tracking-tight uppercase">Bold.ng Global Marketplace</h3>
-                <span className="text-xs text-slate-400 font-mono">Showing all community uploads</span>
+                <span className="text-xs text-slate-400 font-mono">Showing promoted & community listings</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {products.length === 0 ? (
-                  <p className="text-xs text-slate-400 font-mono py-8">No products listed in the marketplace yet. Be the first to upload!</p>
+                  <p className="text-xs text-slate-400 font-mono py-8">No products found in marketplace.</p>
                 ) : (
                   products.map((item) => (
-                    <div key={item.id} className="bg-[#16223F] border border-slate-700 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between">
+                    <div key={item.id} className={`bg-[#16223F] border ${item.isPromoted ? 'border-[#FF5A00]' : 'border-slate-700'} rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between relative`}>
+                      {item.isPromoted && (
+                        <div className="absolute top-2 right-2 bg-[#FF5A00] text-white text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full shadow">
+                          🔥 PROMOTED AD
+                        </div>
+                      )}
                       <img src={item.image} alt={item.name} className="w-full h-48 object-cover bg-slate-800" />
                       <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
                         <div>
@@ -398,7 +416,7 @@ export default function AuthPortal() {
                         </div>
                         <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
                           <span className="text-sm font-mono font-bold text-[#FF5A00]">₦{item.price?.toLocaleString()}</span>
-                          <span className="text-[10px] text-slate-500 font-mono">By: {item.ownerName || 'Verified Vendor'}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">By: {item.ownerName || 'Vendor'}</span>
                         </div>
                       </div>
                     </div>
@@ -408,11 +426,10 @@ export default function AuthPortal() {
             </div>
           )}
 
-          {/* TAB 2: MY UPLOADED PRODUCTS */}
           {activeTab === 'my-products' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-black tracking-tight uppercase">My Inventory & Uploaded Products</h3>
+                <h3 className="text-lg font-black tracking-tight uppercase">My Inventory & Dashboard Management</h3>
                 <button 
                   onClick={() => { 
                     setEditingProductId(null); 
@@ -420,7 +437,8 @@ export default function AuthPortal() {
                     setProductPrice(''); 
                     setProductCategory('General Goods');
                     setProductDescription(''); 
-                    setProductImage(''); 
+                    setProductImageFile(null);
+                    setExistingImageUrl(''); 
                     setActiveTab('upload'); 
                   }} 
                   className="bg-[#FF5A00] hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-lg"
@@ -430,11 +448,16 @@ export default function AuthPortal() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {products.filter(p => p.ownerUid === currentUser.uid).length === 0 ? (
-                  <p className="text-xs text-slate-400 font-mono py-8">You have not uploaded any products yet. Click 'Upload New Product' above.</p>
+                {myProducts.length === 0 ? (
+                  <p className="text-xs text-slate-400 font-mono py-8">You haven't uploaded any products yet. Click 'Upload New Product' above.</p>
                 ) : (
-                  products.filter(p => p.ownerUid === currentUser.uid).map((item) => (
-                    <div key={item.id} className="bg-[#16223F] border border-slate-700 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between">
+                  myProducts.map((item) => (
+                    <div key={item.id} className={`bg-[#16223F] border ${item.isPromoted ? 'border-[#FF5A00]' : 'border-slate-700'} rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between relative`}>
+                      {item.isPromoted && (
+                        <div className="absolute top-2 right-2 bg-[#FF5A00] text-white text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full shadow">
+                          🔥 ACTIVE PROMOTION
+                        </div>
+                      )}
                       <img src={item.image} alt={item.name} className="w-full h-48 object-cover bg-slate-800" />
                       <div className="p-4 space-y-2">
                         <div className="flex justify-between items-start">
@@ -443,19 +466,35 @@ export default function AuthPortal() {
                         </div>
                         <p className="text-xs text-slate-400">{item.description}</p>
                       </div>
-                      <div className="p-4 pt-0 flex gap-2">
-                        <button 
-                          onClick={() => handleEditProduct(item)} 
-                          className="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                        >
-                          Edit ✏️
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteProduct(item.id)} 
-                          className="flex-1 bg-red-600 hover:bg-red-500 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                        >
-                          Delete 🗑️
-                        </button>
+                      
+                      <div className="p-4 pt-0 space-y-2">
+                        {!item.isPromoted ? (
+                          <button 
+                            onClick={() => handlePromoteProduct(item)}
+                            className="w-full bg-[#FF5A00] hover:bg-orange-600 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-md shadow-orange-600/20 flex items-center justify-center gap-1.5"
+                          >
+                            🚀 Promote Product (₦1,000)
+                          </button>
+                        ) : (
+                          <div className="w-full bg-orange-950/50 border border-[#FF5A00]/40 text-[#FF5A00] py-2 rounded-xl text-center text-xs font-mono font-bold">
+                            Ad Boost Active ✅
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleEditProduct(item)} 
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Edit ✏️
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProduct(item)} 
+                            className="flex-1 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-300 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Delete 🗑️
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -464,7 +503,6 @@ export default function AuthPortal() {
             </div>
           )}
 
-          {/* TAB 3: UPLOAD / EDIT PRODUCT FORM */}
           {activeTab === 'upload' && (
             <div className="max-w-xl mx-auto bg-[#16223F] border border-slate-700 rounded-3xl p-8 shadow-2xl">
               <div className="flex justify-between items-center mb-4">
@@ -481,7 +519,7 @@ export default function AuthPortal() {
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Premium Wireless Earbuds"
+                    placeholder="Enter product name"
                     value={productName}
                     onChange={(e) => setProductName(e.target.value)}
                     required
@@ -494,7 +532,7 @@ export default function AuthPortal() {
                     <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Price (₦)</label>
                     <input
                       type="number"
-                      placeholder="25000"
+                      placeholder="0.00"
                       value={productPrice}
                       onChange={(e) => setProductPrice(e.target.value)}
                       required
@@ -517,21 +555,23 @@ export default function AuthPortal() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Image URL</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Image File</label>
                   <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={productImage}
-                    onChange={(e) => setProductImage(e.target.value)}
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setProductImageFile(e.target.files[0])}
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FF5A00] file:text-white"
                   />
+                  {existingImageUrl && !productImageFile && (
+                    <p className="text-[10px] text-slate-400 font-mono mt-1">Current image will be kept if no new file is chosen.</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Description</label>
                   <textarea
                     rows="3"
-                    placeholder="Describe your product condition, delivery terms..."
+                    placeholder="Enter product description and details..."
                     value={productDescription}
                     onChange={(e) => setProductDescription(e.target.value)}
                     className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
@@ -548,19 +588,15 @@ export default function AuthPortal() {
               </form>
             </div>
           )}
-
         </div>
       </div>
     );
   }
 
-  // =========================================================
-  // RENDER: AUTHENTICATION & VERIFICATION PORTAL GATEWAY
-  // =========================================================
+  // AUTH GATEWAY (SIGNIN / SIGNUP)
   return (
     <div className="relative min-h-screen bg-[#070D1F] flex items-center justify-center p-4 font-sans text-white overflow-hidden">
       <div className="relative z-10 w-full max-w-md bg-[#16223F]/95 backdrop-blur-md border border-slate-700/80 rounded-3xl p-8 shadow-2xl space-y-6">
-
         <div className="text-center space-y-1">
           <div className="inline-block px-3 py-1 bg-[#FF5A00]/10 text-[#FF5A00] font-mono text-[10px] font-black uppercase tracking-widest rounded-full border border-[#FF5A00]/20 mb-2">
             Secure Auth Gateway
@@ -569,13 +605,7 @@ export default function AuthPortal() {
             {isVerifying ? 'Channel Verification' : isForgotPassword ? 'Reset Password' : isSignup ? 'Create Account' : 'Welcome Back'}
           </h1>
           <p className="text-xs text-slate-400">
-            {isVerifying 
-              ? `Enter verification details for your chosen channel (${verifyChannel.toUpperCase()})` 
-              : isForgotPassword 
-              ? 'Recover your account access safely' 
-              : isSignup 
-              ? 'Register your profile on bold.ng' 
-              : 'Sign in to access your dashboard'}
+            {isVerifying ? `Enter verification details for (${verifyChannel.toUpperCase()})` : isForgotPassword ? 'Recover your account access safely' : isSignup ? 'Register your profile on bold.ng' : 'Sign in to access your dashboard'}
           </p>
         </div>
 
@@ -586,9 +616,7 @@ export default function AuthPortal() {
           <form onSubmit={handleVerifySubmission} className="space-y-4">
             <div className="p-4 bg-[#0B132B] border border-slate-700 rounded-2xl space-y-3">
               <p className="text-xs text-slate-300">
-                {verifyChannel === 'email' 
-                  ? `We sent an automated verification link to ${email}. Please click the link inside your email, then click the button below.`
-                  : `Enter the 6-digit OTP code sent via ${verifyChannel.toUpperCase()} to ${phone}:`}
+                {verifyChannel === 'email' ? `Verification link sent to ${email}. Click the email link, then confirm below.` : `Enter OTP code sent via ${verifyChannel.toUpperCase()}:`}
               </p>
               {verifyChannel !== 'email' && (
                 <input
@@ -606,9 +634,9 @@ export default function AuthPortal() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-orange-600/20 cursor-pointer"
+              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
             >
-              {loading ? 'Verifying...' : 'Confirm & Complete Verification'}
+              {loading ? 'Verifying...' : 'Confirm & Complete'}
             </button>
           </form>
         ) : isForgotPassword ? (
@@ -627,9 +655,9 @@ export default function AuthPortal() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-orange-600/20 cursor-pointer"
+              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
             >
-              {loading ? 'Sending Instructions...' : 'Send Password Reset Link'}
+              {loading ? 'Sending...' : 'Send Password Reset Link'}
             </button>
             <button
               type="button"
@@ -641,7 +669,6 @@ export default function AuthPortal() {
           </form>
         ) : (
           <form onSubmit={isSignup ? handleSignupSubmit : handleLoginSubmit} className="space-y-4">
-
             {isSignup && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -670,28 +697,15 @@ export default function AuthPortal() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Contact Phone / WhatsApp Number</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Contact Phone / WhatsApp</label>
                   <input
                     type="tel"
-                    placeholder="+234 800 000 0000"
+                    placeholder="+234..."
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono"
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
                   />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Verification Method</label>
-                  <select
-                    value={verifyChannel}
-                    onChange={(e) => setVerifyChannel(e.target.value)}
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer font-mono"
-                  >
-                    <option value="email">Email Link Verification</option>
-                    <option value="whatsapp">WhatsApp OTP Code (Simulated)</option>
-                    <option value="sms">SMS Contact Number OTP (Simulated)</option>
-                  </select>
                 </div>
               </>
             )}
@@ -717,14 +731,14 @@ export default function AuthPortal() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-14"
+                  className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer font-mono"
                 >
-                  {showPassword ? 'HIDE' : 'SHOW'}
+                  {showPassword ? 'hide' : 'show'}
                 </button>
               </div>
             </div>
@@ -739,14 +753,14 @@ export default function AuthPortal() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-14"
+                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer font-mono"
                   >
-                    {showConfirmPassword ? 'HIDE' : 'SHOW'}
+                    {showConfirmPassword ? 'hide' : 'show'}
                   </button>
                 </div>
               </div>
@@ -757,7 +771,7 @@ export default function AuthPortal() {
                 <button
                   type="button"
                   onClick={() => { setIsForgotPassword(true); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-[11px] text-slate-400 hover:text-[#FF5A00] font-mono cursor-pointer"
+                  className="text-[11px] text-slate-400 hover:text-[#FF5A00] cursor-pointer font-mono"
                 >
                   Forgot password?
                 </button>
@@ -767,24 +781,22 @@ export default function AuthPortal() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-orange-600/20 cursor-pointer mt-2"
+              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer mt-2"
             >
-              {loading ? 'Please wait...' : isSignup ? 'Create Account' : 'Sign In'}
+              {loading ? 'Processing...' : isSignup ? 'Create Account' : 'Sign In'}
             </button>
 
-            <div className="pt-2 text-center">
+            <div className="text-center pt-2">
               <button
                 type="button"
                 onClick={() => { setIsSignup(!isSignup); setErrorMsg(''); setSuccessMsg(''); }}
                 className="text-xs text-slate-400 hover:text-white cursor-pointer font-mono"
               >
-                {isSignup ? 'Already have an account? Sign In' : "Don't have an account? Create one"}
+                {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
               </button>
             </div>
-
           </form>
         )}
-
       </div>
     </div>
   );
