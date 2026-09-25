@@ -85,7 +85,8 @@ export default function AuthPortal() {
 
   const fetchAllData = async (uid) => {
     try {
-      const qAll = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+      // 1. Fetch all items from 'inventory' sorted by dateAdded
+      const qAll = query(collection(db, 'inventory'), orderBy('dateAdded', 'desc'));
       const allSnapshot = await getDocs(qAll);
       const allItems = [];
       allSnapshot.forEach((docSnap) => {
@@ -93,7 +94,8 @@ export default function AuthPortal() {
       });
       setProducts(allItems);
 
-      const qMine = query(collection(db, 'products'), where('ownerUid', '==', uid));
+      // 2. Fetch user's specific items using 'merchantId'
+      const qMine = query(collection(db, 'inventory'), where('merchantId', '==', uid));
       const mineSnapshot = await getDocs(qMine);
       const mineItems = [];
       mineSnapshot.forEach((docSnap) => {
@@ -104,7 +106,6 @@ export default function AuthPortal() {
       console.error('Error fetching data:', err);
     }
   };
-
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
