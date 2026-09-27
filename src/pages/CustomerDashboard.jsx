@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 export default function CustomerDashboard({ 
   user, 
@@ -6,7 +8,8 @@ export default function CustomerDashboard({
   userListings = [], 
   setCurrentPage, 
   onOpenProductUpload, 
-  onDeleteListing 
+  onDeleteListing,
+  onRefreshListings 
 }) {
   const displayName = user?.name || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Valued Member');
   const displayEmail = user?.email || 'member@bold.ng';
@@ -19,39 +22,110 @@ export default function CustomerDashboard({
   const totalListings = myListings.length;
   const totalPromoted = myListings.filter(item => item.promotionSettings?.adPlacement).length;
 
-  // Safe handler to prevent clicks from failing if prop is undefined
-  const handleOpenUpload = () => {
-    if (typeof onOpenProductUpload === 'function') {
-      onOpenProductUpload();
-    } else {
-      console.warn('onOpenProductUpload handler is not connected in parent component.');
-      alert('Product upload modal trigger is loading or not connected yet.');
+  // Edit State
+  const [editingItem, setEditingItem] = useState(null);
+  const [editFormData, setEditFormData] = useState({ title: '', price: '', category: '' });
+
+  // Buyer Detail Modal State
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // 🔒 AUTHENTICATION GATE & REDIRECT: Pushes logged-out / unregistered users straight to auth
+  const requireAuth = (callback) => {
+    const activeUser = auth.currentUser || user;
+
+    if (!activeUser || !activeUser.email) {
+      alert('🔒 Access Restricted: You must log in or sign up for a bold.ng account to upload or buy products and protect the platform against fraud.');
+      
+      // Directly redirect to the sign-in / sign-up page state ('auth')
+      if (typeof setCurrentPage === 'function') {
+        setCurrentPage('auth'); 
+      }
+      return;
+    }
+
+    // Execute action for authenticated users or CEO
+    if (typeof callback === 'function') {
+      callback();
     }
   };
 
-  // Handler for store upgrade / opening store portal
+  const handleOpenUpload = () => {
+    requireAuth(() => {
+      if (typeof onOpenProductUpload === 'function') {
+        onOpenProductUpload();
+      } else {
+        console.warn('onOpenProductUpload handler is not connected.');
+        alert('Product upload modal trigger is loading or not connected yet.');
+      }
+    });
+  };
+
   const handleOpenStoreUpgrade = () => {
-    if (typeof setCurrentPage === 'function') {
-      setCurrentPage('addproduct'); // Routes buyer straight to store/product initialization
-    } else {
-      handleOpenUpload();
-    }
+    requireAuth(() => {
+      if (typeof setCurrentPage === 'function') {
+        setCurrentPage('addproduct'); 
+      } else {
+        handleOpenUpload();
+      }
+    });
+  };
+
+  const handleSecureCheckout = (product) => {
+    requireAuth(() => {
+      alert(`🛡️ Escrow Verified: Proceeding to secure checkout for ${product.title || product.meta}`);
+      setSelectedProduct(null);
+    });
+  };
+
+  const startEditing = (item) => {
+    requireAuth(() => {
+      setEditingItem(item.id || item.docId);
+      setEditFormData({
+        title: item.title || item.meta || '',
+        price: item.price || '',
+        category: item.category || 'General'
+      });
+    });
+  };
+
+  const handleSaveEdit = async (itemId) => {
+    requireAuth(async () => {
+      try {
+        const itemRef = doc(db, 'inventory', itemId);
+        await updateDoc(itemRef, {
+          title: editFormData.title,
+          meta: editFormData.title,
+          price: Number(editFormData.price),
+          category: editFormData.category
+        });
+        alert('Listing updated successfully!');
+        setEditingItem(null);
+        if (typeof onRefreshListings === 'function') onRefreshListings();
+      } catch (err) {
+        console.error('Error updating listing:', err);
+        alert('Failed to update listing.');
+      }
+    });
+  };
+
+  const getProductImage = (item) => {
+    return item.media?.imageUrl || item.img || item.imageUrl || '';
   };
 
   return (
     <div className="max-w-[1440px] mx-auto px-4 py-6 text-white space-y-8 pb-32">
       
-      {/* 1. ACCOUNT HUB HEADER & QUICK SWITCH BAR */}
+      {/* 1. ACCOUNT HUB HEADER */}
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF5A00]/5 rounded-full blur-3xl pointer-events-none"></div>
         
         <div className="space-y-1.5 z-10">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-mono text-[#FF5A00] uppercase tracking-widest font-black bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20">
-              Bold.ng Verified Account Hub
+              Bold.ng Verified Security Node
             </span>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-900">
-              ● Node Active
+              ● Escrow Active
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">
@@ -62,9 +136,7 @@ export default function CustomerDashboard({
           </p>
         </div>
 
-        {/* Quick Action Navigation & Store Upgrade Buttons */}
         <div className="flex flex-wrap items-center gap-3 z-10 w-full lg:w-auto">
-          {/* HIGH-VISIBILITY STORE UPGRADE BUTTON */}
           <button
             type="button"
             onClick={handleOpenStoreUpgrade}
@@ -73,7 +145,7 @@ export default function CustomerDashboard({
             <span className="text-base">🏪</span> 
             <div className="text-left">
               <div className="leading-tight">Open / Upgrade Store</div>
-              <div className="text-[9px] font-mono font-normal opacity-90">Start selling instantly</div>
+              <div className="text-[9px] font-mono font-normal opacity-90">Start selling securely</div>
             </div>
           </button>
 
@@ -95,9 +167,8 @@ export default function CustomerDashboard({
         </div>
       </div>
 
-      {/* 2. METRICS OVERVIEW GRID */}
+      {/* 2. METRICS GRID */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        
         <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800 shadow-lg flex flex-col justify-between">
           <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Your Active Listings</span>
           <div className="flex items-baseline justify-between mt-3">
@@ -129,10 +200,9 @@ export default function CustomerDashboard({
             <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded">Successful</span>
           </div>
         </div>
-
       </div>
 
-      {/* 3. UPLOADED PRODUCTS & PROGRESS MONITOR */}
+      {/* 3. YOUR UPLOADED PRODUCTS & PROGRESS MONITOR */}
       <div className="bg-[#16223F] rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800">
           <div>
@@ -158,7 +228,7 @@ export default function CustomerDashboard({
             <div className="text-5xl">🚀</div>
             <h3 className="text-white font-bold text-base">No Products Uploaded Yet</h3>
             <p className="text-slate-400 text-xs max-w-md mx-auto leading-relaxed">
-              You haven't posted any products, services, or direct ads to bold.ng yet. Upload your first item now to see it live on the marketplace and promotional feeds!
+              You haven't posted any products to bold.ng yet. Click below to upload your first item securely!
             </p>
             <button
               type="button"
@@ -171,30 +241,63 @@ export default function CustomerDashboard({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {myListings.map((item) => {
+              const itemId = item.id || item.docId;
+              const isEditing = editingItem === itemId;
               const placement = item.promotionSettings?.adPlacement || 'Standard Marketplace Feed';
+              const itemImg = getProductImage(item);
+
               return (
                 <div 
-                  key={item.id || item.docId} 
+                  key={itemId} 
                   className="bg-[#0B132B] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-700 transition"
                 >
                   <div className="flex gap-3 items-start">
-                    <div className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden border border-slate-800 flex items-center justify-center">
-                      {item.img && item.img.startsWith('http') ? (
-                        <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
+                    <div 
+                      className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden border border-slate-800 flex items-center justify-center cursor-pointer"
+                      onClick={() => setSelectedProduct(item)}
+                      title="Click to view full details"
+                    >
+                      {itemImg && itemImg.startsWith('http') ? (
+                        <img src={itemImg} alt={item.title || item.meta} className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-2xl">📦</span>
                       )}
                     </div>
+                    
                     <div className="flex-1 min-w-0">
                       <span className="text-[9px] font-black uppercase tracking-wider text-[#FF5A00] bg-[#FF5A00]/10 px-2 py-0.5 rounded border border-[#FF5A00]/20">
                         {item.category || 'General'}
                       </span>
-                      <h4 className="text-sm font-bold text-white truncate mt-1">{item.title}</h4>
-                      <p className="text-xs font-mono font-black text-white mt-0.5">₦{Number(item.price).toLocaleString()}</p>
+
+                      {isEditing ? (
+                        <div className="space-y-2 mt-2">
+                          <input 
+                            type="text" 
+                            value={editFormData.title} 
+                            onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                          />
+                          <input 
+                            type="number" 
+                            value={editFormData.price} 
+                            onChange={(e) => setEditFormData({...editFormData, price: e.target.value})}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <h4 
+                            className="text-sm font-bold text-white truncate mt-1 cursor-pointer hover:text-[#FF5A00]"
+                            onClick={() => setSelectedProduct(item)}
+                          >
+                            {item.title || item.meta}
+                          </h4>
+                          <p className="text-xs font-mono font-black text-white mt-0.5">₦{Number(item.price || 0).toLocaleString()}</p>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* Progress & Placement Status Bar */}
                   <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800/80 space-y-2 text-xs">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-slate-400">Placement Feed:</span>
@@ -207,16 +310,43 @@ export default function CustomerDashboard({
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                    <span className="text-[10px] text-slate-500 font-mono">ID: {item.id?.substring(0, 8) || 'BOLD-NG'}</span>
-                    {onDeleteListing && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteListing(item.id || item.docId)}
-                        className="text-xs text-red-400 hover:text-red-300 font-bold transition cursor-pointer"
-                      >
-                        Remove Listing
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProduct(item)}
+                      className="text-[11px] text-[#FF5A00] font-bold hover:underline cursor-pointer"
+                    >
+                      View Details →
+                    </button>
+                    
+                    <div className="flex items-center gap-3">
+                      {isEditing ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEdit(itemId)}
+                          className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition cursor-pointer"
+                        >
+                          Save
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditing(item)}
+                          className="text-xs text-blue-400 hover:text-blue-300 font-bold transition cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      )}
+
+                      {onDeleteListing && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteListing(itemId)}
+                          className="text-xs text-red-400 hover:text-red-300 font-bold transition cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -225,7 +355,7 @@ export default function CustomerDashboard({
         )}
       </div>
 
-      {/* 4. RECENT TRANSACTIONS / ESCROW VAULT ACTIVITY */}
+      {/* 4. ESCROW VAULT & TRANSACTION HISTORY */}
       <div className="bg-[#16223F] rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl">
         <h2 className="text-lg sm:text-xl font-black mb-4 tracking-tight flex items-center gap-2">
           <span>🛡️</span> Escrow Vault & Transaction History
@@ -258,6 +388,85 @@ export default function CustomerDashboard({
           </div>
         )}
       </div>
+
+      {/* 5. BUYER DETAILED PRODUCT POPUP MODAL */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#16223F] border border-slate-700 rounded-3xl max-w-lg w-full p-6 text-white space-y-6 relative shadow-2xl animate-in fade-in zoom-in duration-200">
+            
+            <button 
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center font-bold transition cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] bg-[#FF5A00]/10 px-3 py-1 rounded-full border border-[#FF5A00]/20 font-black">
+                {selectedProduct.category || 'General'} Product Details
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                {selectedProduct.title || selectedProduct.meta}
+              </h2>
+            </div>
+
+            <div className="w-full h-64 bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center">
+              {getProductImage(selectedProduct) ? (
+                <img 
+                  src={getProductImage(selectedProduct)} 
+                  alt={selectedProduct.title || selectedProduct.meta} 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-4xl">📦</span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-400 block">Price</span>
+                <span className="text-base font-black text-[#FF5A00] font-mono mt-0.5 block">
+                  ₦{Number(selectedProduct.price || 0).toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Location / Hub</span>
+                <span className="text-sm font-bold text-white mt-0.5 block">
+                  {selectedProduct.location || 'Nigeria'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Listing ID</span>
+                <span className="font-mono text-slate-300 truncate block mt-0.5">
+                  {selectedProduct.id || selectedProduct.docId || 'BOLD-NG'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Verification</span>
+                <span className="text-emerald-400 font-bold block mt-0.5">Secure Escrow Node</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => handleSecureCheckout(selectedProduct)}
+                className="flex-1 bg-gradient-to-r from-[#FF5A00] to-amber-600 hover:from-amber-600 hover:to-[#FF5A00] text-white font-black py-3.5 rounded-xl transition shadow-lg cursor-pointer text-xs uppercase tracking-wider"
+              >
+                Buy Now / Secure Checkout
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(null)}
+                className="px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-xl transition cursor-pointer text-xs"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

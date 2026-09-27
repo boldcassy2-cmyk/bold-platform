@@ -240,7 +240,7 @@ const compressImage = (file) => {
   });
 };
 
-export default function ProductCatalogForm({ onAddProductComplete, setCurrentPage }) {
+export default function ProductCatalogForm({ currentUser, onAddProductComplete, setCurrentPage }) {
   const [formData, setFormData] = useState({
     title: '',
     price: '',
@@ -348,6 +348,12 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
     e.preventDefault();
     setErrorMessage('');
 
+    // Strict authentication guard check
+    if (!currentUser) {
+      setErrorMessage('Access Denied: You must be signed in and registered to upload products.');
+      return;
+    }
+
     if (!formData.title.trim() || !formData.price || Number(formData.price) <= 0) {
       setErrorMessage('Please enter a valid title and price.');
       return;
@@ -394,6 +400,8 @@ export default function ProductCatalogForm({ onAddProductComplete, setCurrentPag
         meta: formData.meta.trim(),
         img: imageUrl,
         media: { imageUrl, videoUrl, pdfUrl },
+        ownerUid: currentUser.uid || currentUser.id,
+        vendorEmail: currentUser.email,
         dateAdded: new Date().toISOString().split('T')[0]
       };
 
@@ -725,20 +733,31 @@ function FileUploadField({ label, accept, maxMb, file, onSelect }) {
   return (
     <div className="bg-[#0B132B] border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-2">
       <div>
-        <label className="text-xs font-bold text-slate-300 block">{label}</label>
-        <span className="text-[10px] text-slate-500">Max size: {maxMb}MB</span>
-      </div>
-      <input
-        type="file"
-        accept={accept}
-        onChange={(e) => onSelect(e.target.files?.[0] || null)}
-        className="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-200 hover:file:bg-[#FF5A00] hover:file:text-white cursor-pointer"
-      />
-      {file && (
-        <span className="text-[11px] text-emerald-400 font-medium truncate block">
-          ✓ {file.name}
+        <label className="text-xs font-bold text-slate-300 block mb-1">{label}</label>
+        <span className="text-[11px] text-slate-400 truncate block">
+          {file ? file.name : `Max size: ${maxMb}MB`}
         </span>
-      )}
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors">
+          {file ? 'Change' : 'Browse'}
+          <input
+            type="file"
+            accept={accept}
+            onChange={(e) => onSelect(e.target.files?.[0] || null)}
+            className="hidden"
+          />
+        </label>
+        {file && (
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            className="text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 bg-red-950/40 rounded border border-red-900/30"
+          >
+            ✕ Remove
+          </button>
+        )}
+      </div>
     </div>
   );
 }

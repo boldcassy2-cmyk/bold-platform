@@ -76,26 +76,32 @@ export default function AuthPortal() {
       } else {
         setCurrentUser(null);
         setUserData(null);
-        setProducts([]);
-        setMyProducts([]);
+        await fetchPublicMarketplace();
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const fetchAllData = async (uid) => {
+  const fetchPublicMarketplace = async () => {
     try {
-      // 1. Fetch all items from 'inventory' sorted by dateAdded
-      const qAll = query(collection(db, 'inventory'), orderBy('dateAdded', 'desc'));
+      const qAll = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
       const allSnapshot = await getDocs(qAll);
       const allItems = [];
       allSnapshot.forEach((docSnap) => {
         allItems.push({ id: docSnap.id, ...docSnap.data() });
       });
       setProducts(allItems);
+    } catch (err) {
+      console.error('Error fetching marketplace products:', err);
+    }
+  };
 
-      // 2. Fetch user's specific items using 'merchantId'
-      const qMine = query(collection(db, 'inventory'), where('merchantId', '==', uid));
+  const fetchAllData = async (uid) => {
+    try {
+      await fetchPublicMarketplace();
+
+      // Fetch user's specific items
+      const qMine = query(collection(db, 'products'), where('ownerUid', '==', uid));
       const mineSnapshot = await getDocs(qMine);
       const mineItems = [];
       mineSnapshot.forEach((docSnap) => {
@@ -106,6 +112,7 @@ export default function AuthPortal() {
       console.error('Error fetching data:', err);
     }
   };
+
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -239,12 +246,15 @@ export default function AuthPortal() {
   // PRODUCT MANAGEMENT & FIREBASE STORAGE UPLOAD HANDLER
   const handleProductSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      setErrorMsg('You must be logged in to upload products.');
+      return;
+    }
     setErrorMsg('');
     setLoading(true);
     try {
       let finalImageUrl = existingImageUrl;
 
-      // If user picked a new file, upload it to Firebase Storage
       if (productImageFile) {
         const imageRef = ref(storage, `product_images/${currentUser.uid}_${Date.now()}_${productImageFile.name}`);
         const snapshot = await uploadBytes(imageRef, productImageFile);
@@ -278,7 +288,7 @@ export default function AuthPortal() {
           isPromoted: false,
           createdAt: serverTimestamp()
         });
-        setSuccessMsg('Product uploaded successfully with permanent storage!');
+        setSuccessMsg('Product uploaded successfully!');
       }
 
       setProductName('');
@@ -296,6 +306,15 @@ export default function AuthPortal() {
     }
   };
 
+  const handleBuyProduct = (product) => {
+    if (!currentUser) {
+      alert('Please log in or sign up to buy products on bold.ng!');
+      // Force view back to auth portal
+      return;
+    }
+    window.alert(`Proceeding to checkout for "${product.name}" priced at ₦${product.price?.toLocaleString()}!`);
+  };
+
   const handlePromoteProduct = async (product) => {
     const confirmPromote = window.confirm(`Promote "${product.name}" for ₦1,000 ad boost fee?`);
     if (!confirmPromote) return;
@@ -307,10 +326,10 @@ export default function AuthPortal() {
         isPromoted: true,
         promotedAt: serverTimestamp()
       });
-      setSuccessMsg(`🚀 Successfully promoted "${product.name}" for ₦1,000! Your listing is now boosted.`);
+      setSuccessMsg(`🚀 Successfully promoted "${product.name}" for ₦1,000!`);
       await fetchAllData(currentUser.uid);
     } catch (err) {
-      setErrorMsg('Promotion payment simulation failed. Please try again.');
+      setErrorMsg('Promotion payment simulation failed.');
     }
     setLoading(false);
   };
@@ -327,15 +346,14 @@ export default function AuthPortal() {
   };
 
   const handleDeleteProduct = async (item) => {
-    if (window.confirm('Are you sure you want to delete this product? The image and listing will be permanently removed.')) {
+    if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         if (item.image && item.image.includes('firebasestorage.googleapis.com')) {
           const imageRef = ref(storage, item.image);
-          await deleteObject(imageRef).catch((err) => console.log('Storage delete notice:', err));
+          await deleteObject(imageRef).catch((err) => console.log(err));
         }
-
         await deleteDoc(doc(db, 'products', item.id));
-        setSuccessMsg('Product and image permanently deleted.');
+        setSuccessMsg('Product deleted successfully.');
         await fetchAllData(currentUser.uid);
       } catch (err) {
         setErrorMsg('Failed to delete product.');
@@ -347,16 +365,18 @@ export default function AuthPortal() {
     await signOut(auth);
   };
 
-  // DASHBOARD VIEW
+  // ==========================================
+  // VIEW 1: LOGGED-IN CUSTOM DASHBOARD
+  // ==========================================
   if (currentUser) {
     return (
       <div className="min-h-screen bg-[#070D1F] text-white p-6 font-sans">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center bg-[#16223F] border border-slate-700 p-4 rounded-2xl mb-6 shadow-xl gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FF5A00] rounded-xl flex items-center font-black text-lg justify-center">B</div>
+            <div className="w-10 h-10 bg-[#FF5A00] rounded-xl flex items-center font-black text-lg justify-center shadow-lg">B</div>
             <div>
               <h2 className="font-bold text-sm">Welcome, {userData?.firstName || 'User'} {userData?.lastName || ''}</h2>
-              <p className="text-[10px] text-slate-400 font-mono">Role: {userData?.role} | Status: {userData?.verified ? '✅ Verified' : '⚠️ Pending'}</p>
+              <p className="text-[10px] text-slate-400 font-mono">Role: {userData?.role || 'CUSTOMER'} | Status: {userData?.verified ? '✅ Verified' : '⚠️ Pending'}</p>
             </div>
           </div>
 
@@ -365,13 +385,13 @@ export default function AuthPortal() {
               onClick={() => setActiveTab('marketplace')} 
               className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'marketplace' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] text-slate-300 hover:bg-slate-800'}`}
             >
-              🛒 Public Marketplace
+              🛒 Marketplace
             </button>
             <button 
               onClick={() => setActiveTab('my-products')} 
               className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'my-products' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] text-slate-300 hover:bg-slate-800'}`}
             >
-              📦 My Uploaded Products ({myProducts.length})
+              📦 My Inventory ({myProducts.length})
             </button>
             <button 
               onClick={handleLogout} 
@@ -392,7 +412,12 @@ export default function AuthPortal() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-black tracking-tight uppercase">Bold.ng Global Marketplace</h3>
-                <span className="text-xs text-slate-400 font-mono">Showing promoted & community listings</span>
+                <button 
+                  onClick={() => setActiveTab('upload')}
+                  className="bg-[#FF5A00] hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  ➕ Upload New Product
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -417,7 +442,12 @@ export default function AuthPortal() {
                         </div>
                         <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
                           <span className="text-sm font-mono font-bold text-[#FF5A00]">₦{item.price?.toLocaleString()}</span>
-                          <span className="text-[10px] text-slate-500 font-mono">By: {item.ownerName || 'Vendor'}</span>
+                          <button 
+                            onClick={() => handleBuyProduct(item)}
+                            className="bg-[#FF5A00] hover:bg-orange-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition cursor-pointer"
+                          >
+                            Buy Product 🛒
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -450,15 +480,10 @@ export default function AuthPortal() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {myProducts.length === 0 ? (
-                  <p className="text-xs text-slate-400 font-mono py-8">You haven't uploaded any products yet. Click 'Upload New Product' above.</p>
+                  <p className="text-xs text-slate-400 font-mono py-8">You haven't uploaded any products yet.</p>
                 ) : (
                   myProducts.map((item) => (
                     <div key={item.id} className={`bg-[#16223F] border ${item.isPromoted ? 'border-[#FF5A00]' : 'border-slate-700'} rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between relative`}>
-                      {item.isPromoted && (
-                        <div className="absolute top-2 right-2 bg-[#FF5A00] text-white text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full shadow">
-                          🔥 ACTIVE PROMOTION
-                        </div>
-                      )}
                       <img src={item.image} alt={item.name} className="w-full h-48 object-cover bg-slate-800" />
                       <div className="p-4 space-y-2">
                         <div className="flex justify-between items-start">
@@ -472,7 +497,7 @@ export default function AuthPortal() {
                         {!item.isPromoted ? (
                           <button 
                             onClick={() => handlePromoteProduct(item)}
-                            className="w-full bg-[#FF5A00] hover:bg-orange-600 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-md shadow-orange-600/20 flex items-center justify-center gap-1.5"
+                            className="w-full bg-[#FF5A00] hover:bg-orange-600 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-md"
                           >
                             🚀 Promote Product (₦1,000)
                           </button>
@@ -483,18 +508,8 @@ export default function AuthPortal() {
                         )}
 
                         <div className="flex gap-2">
-                          <button 
-                            onClick={() => handleEditProduct(item)} 
-                            className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                          >
-                            Edit ✏️
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteProduct(item)} 
-                            className="flex-1 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-300 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                          >
-                            Delete 🗑️
-                          </button>
+                          <button onClick={() => handleEditProduct(item)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition cursor-pointer">Edit ✏️</button>
+                          <button onClick={() => handleDeleteProduct(item)} className="flex-1 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-300 py-2 rounded-xl text-xs font-bold transition cursor-pointer">Delete 🗑️</button>
                         </div>
                       </div>
                     </div>
@@ -508,45 +523,21 @@ export default function AuthPortal() {
             <div className="max-w-xl mx-auto bg-[#16223F] border border-slate-700 rounded-3xl p-8 shadow-2xl">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-black tracking-tight uppercase">{editingProductId ? 'Edit Product' : 'Upload New Product'}</h3>
-                <button 
-                  onClick={() => setActiveTab('my-products')}
-                  className="text-xs text-slate-400 hover:text-white font-mono cursor-pointer"
-                >
-                  ← Back to My Products
-                </button>
+                <button onClick={() => setActiveTab('my-products')} className="text-xs text-slate-400 hover:text-white font-mono cursor-pointer">← Back</button>
               </div>
               <form onSubmit={handleProductSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter product name"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-                  />
+                  <input type="text" placeholder="Enter product name" value={productName} onChange={(e) => setProductName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Price (₦)</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={productPrice}
-                      onChange={(e) => setProductPrice(e.target.value)}
-                      required
-                      className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono"
-                    />
+                    <input type="number" placeholder="0.00" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Category</label>
-                    <select
-                      value={productCategory}
-                      onChange={(e) => setProductCategory(e.target.value)}
-                      className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer"
-                    >
+                    <select value={productCategory} onChange={(e) => setProductCategory(e.target.value)} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer">
                       <option value="General Goods">General Goods</option>
                       <option value="Electronics">Electronics</option>
                       <option value="Fashion & Wear">Fashion & Wear</option>
@@ -554,37 +545,16 @@ export default function AuthPortal() {
                     </select>
                   </div>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Image File</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setProductImageFile(e.target.files[0])}
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FF5A00] file:text-white"
-                  />
-                  {existingImageUrl && !productImageFile && (
-                    <p className="text-[10px] text-slate-400 font-mono mt-1">Current image will be kept if no new file is chosen.</p>
-                  )}
+                  <input type="file" accept="image/*" onChange={(e) => setProductImageFile(e.target.files[0])} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FF5A00] file:text-white" />
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Description</label>
-                  <textarea
-                    rows="3"
-                    placeholder="Enter product description and details..."
-                    value={productDescription}
-                    onChange={(e) => setProductDescription(e.target.value)}
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-                  />
+                  <textarea rows="3" placeholder="Enter product details..." value={productDescription} onChange={(e) => setProductDescription(e.target.value)} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-orange-600/25 cursor-pointer mt-2"
-                >
-                  {loading ? 'Saving...' : editingProductId ? 'Update Product Listing' : 'Publish Product to Marketplace'}
+                <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition cursor-pointer mt-2">
+                  {loading ? 'Saving...' : editingProductId ? 'Update Listing' : 'Publish Product'}
                 </button>
               </form>
             </div>
@@ -594,10 +564,34 @@ export default function AuthPortal() {
     );
   }
 
-  // AUTH GATEWAY (SIGNIN / SIGNUP)
+  // ==========================================
+  // VIEW 2: AUTH GATEWAY / GUEST WALL (FORCES LOGIN)
+  // ==========================================
   return (
-    <div className="relative min-h-screen bg-[#070D1F] flex items-center justify-center p-4 font-sans text-white overflow-hidden">
-      <div className="relative z-10 w-full max-w-md bg-[#16223F]/95 backdrop-blur-md border border-slate-700/80 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="relative min-h-screen bg-[#070D1F] flex flex-col items-center justify-center p-4 font-sans text-white overflow-hidden">
+      {/* Top Banner for Unauthenticated Visitors viewing Marketplace highlights */}
+      <div className="absolute top-4 left-4 right-4 max-w-4xl mx-auto flex justify-between items-center bg-[#16223F] border border-slate-700 p-4 rounded-2xl shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#FF5A00] rounded-xl flex items-center font-black text-sm justify-center">B</div>
+          <span className="font-bold text-xs uppercase tracking-wider">Bold.ng Marketplace Access Restricted</span>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => { setIsSignup(false); setIsForgotPassword(false); setIsVerifying(false); }}
+            className="px-3 py-1.5 bg-[#0B132B] hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-300"
+          >
+            Sign In
+          </button>
+          <button 
+            onClick={() => { setIsSignup(true); setIsForgotPassword(false); setIsVerifying(false); }}
+            className="px-3 py-1.5 bg-[#FF5A00] hover:bg-orange-600 rounded-xl text-xs font-bold text-white"
+          >
+            Create Account
+          </button>
+        </div>
+      </div>
+
+      <div className="relative z-10 w-full max-w-md bg-[#16223F]/95 backdrop-blur-md border border-slate-700/80 rounded-3xl p-8 shadow-2xl space-y-6 mt-16">
         <div className="text-center space-y-1">
           <div className="inline-block px-3 py-1 bg-[#FF5A00]/10 text-[#FF5A00] font-mono text-[10px] font-black uppercase tracking-widest rounded-full border border-[#FF5A00]/20 mb-2">
             Secure Auth Gateway
@@ -606,7 +600,7 @@ export default function AuthPortal() {
             {isVerifying ? 'Channel Verification' : isForgotPassword ? 'Reset Password' : isSignup ? 'Create Account' : 'Welcome Back'}
           </h1>
           <p className="text-xs text-slate-400">
-            {isVerifying ? `Enter verification details for (${verifyChannel.toUpperCase()})` : isForgotPassword ? 'Recover your account access safely' : isSignup ? 'Register your profile on bold.ng' : 'Sign in to access your dashboard'}
+            {isVerifying ? `Enter verification details for (${verifyChannel.toUpperCase()})` : isForgotPassword ? 'Recover your account safely' : isSignup ? 'Register your profile to upload & buy on bold.ng' : 'Sign in to access your custom dashboard'}
           </p>
         </div>
 
@@ -617,26 +611,13 @@ export default function AuthPortal() {
           <form onSubmit={handleVerifySubmission} className="space-y-4">
             <div className="p-4 bg-[#0B132B] border border-slate-700 rounded-2xl space-y-3">
               <p className="text-xs text-slate-300">
-                {verifyChannel === 'email' ? `Verification link sent to ${email}. Click the email link, then confirm below.` : `Enter OTP code sent via ${verifyChannel.toUpperCase()}:`}
+                {verifyChannel === 'email' ? `Verification link sent to ${email}. Check your inbox.` : `Enter OTP code sent via ${verifyChannel.toUpperCase()}:`}
               </p>
               {verifyChannel !== 'email' && (
-                <input
-                  type="text"
-                  placeholder="123456"
-                  value={otpInput}
-                  onChange={(e) => setOtpInput(e.target.value)}
-                  maxLength={6}
-                  required
-                  className="w-full bg-[#16223F] border border-slate-700 rounded-xl px-4 py-3 text-center text-lg tracking-widest text-white font-mono focus:border-[#FF5A00] outline-none"
-                />
+                <input type="text" placeholder="123456" value={otpInput} onChange={(e) => setOtpInput(e.target.value)} maxLength={6} required className="w-full bg-[#16223F] border border-slate-700 rounded-xl px-4 py-3 text-center text-lg tracking-widest text-white font-mono focus:border-[#FF5A00] outline-none" />
               )}
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
-            >
+            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer">
               {loading ? 'Verifying...' : 'Confirm & Complete'}
             </button>
           </form>
@@ -644,27 +625,12 @@ export default function AuthPortal() {
           <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Account Email</label>
-              <input
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-              />
+              <input type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
-            >
+            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer">
               {loading ? 'Sending...' : 'Send Password Reset Link'}
             </button>
-            <button
-              type="button"
-              onClick={() => { setIsForgotPassword(false); setErrorMsg(''); setSuccessMsg(''); }}
-              className="w-full text-center text-xs text-slate-400 hover:text-white pt-2 cursor-pointer font-mono"
-            >
+            <button type="button" onClick={() => { setIsForgotPassword(false); setErrorMsg(''); setSuccessMsg(''); }} className="w-full text-center text-xs text-slate-400 hover:text-white pt-2 cursor-pointer font-mono">
               ← Back to Sign In
             </button>
           </form>
@@ -675,125 +641,52 @@ export default function AuthPortal() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-slate-400 font-mono">First Name</label>
-                    <input
-                      type="text"
-                      placeholder="Chukwuebuka"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                      className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-                    />
+                    <input type="text" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Last Name</label>
-                    <input
-                      type="text"
-                      placeholder="Ebigbo"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                      className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-                    />
+                    <input type="text" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
                   </div>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Contact Phone / WhatsApp</label>
-                  <input
-                    type="tel"
-                    placeholder="+234..."
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-                  />
+                  <input type="tel" placeholder="+234..." value={phone} onChange={(e) => setPhone(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono" />
                 </div>
               </>
             )}
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Email Address</label>
-              <input
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none"
-              />
+              <input type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer font-mono"
-                >
-                  {showPassword ? 'hide' : 'show'}
-                </button>
-              </div>
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
             </div>
 
             {isSignup && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Confirm Password</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer font-mono"
-                  >
-                    {showConfirmPassword ? 'hide' : 'show'}
-                  </button>
-                </div>
+                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
               </div>
             )}
 
             {!isSignup && (
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => { setIsForgotPassword(true); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-[11px] text-slate-400 hover:text-[#FF5A00] cursor-pointer font-mono"
-                >
-                  Forgot password?
+                <button type="button" onClick={() => { setIsForgotPassword(true); setErrorMsg(''); setSuccessMsg(''); }} className="text-[11px] text-slate-400 hover:text-[#FF5A00] font-mono cursor-pointer">
+                  Forgot Password?
                 </button>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer mt-2"
-            >
-              {loading ? 'Processing...' : isSignup ? 'Create Account' : 'Sign In'}
+            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer mt-2">
+              {loading ? 'Please wait...' : isSignup ? 'Create Account & Continue' : 'Sign In to Dashboard'}
             </button>
 
             <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => { setIsSignup(!isSignup); setErrorMsg(''); setSuccessMsg(''); }}
-                className="text-xs text-slate-400 hover:text-white cursor-pointer font-mono"
-              >
-                {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
+              <button type="button" onClick={() => { setIsSignup(!isSignup); setErrorMsg(''); setSuccessMsg(''); }} className="text-xs text-slate-400 hover:text-white font-mono cursor-pointer">
+                {isSignup ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
               </button>
             </div>
           </form>
