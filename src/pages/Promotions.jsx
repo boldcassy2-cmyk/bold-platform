@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
 export default function Promotions({ uploadedItems = [], onTriggerCheckout, setCurrentPage, setActiveTxPayload }) {
-  // Seller Mode State: 'merchant' (catalog items) vs 'solo' (direct contact / custom items)
+  // Seller Mode State: 'merchant' (Amazon-style store catalog) vs 'solo' (Jiji-style classified ad / direct contact)
   const [sellerMode, setSellerMode] = useState('merchant');
 
-  // Solo Seller Custom Asset Fields
+  // Solo Seller Classified Asset Fields (Jiji Model)
   const [soloTitle, setSoloTitle] = useState('');
   const [soloPrice, setSoloPrice] = useState(15000);
   const [soloCategory, setSoloCategory] = useState('fashion');
   const [soloContact, setSoloContact] = useState(''); // Direct phone or WhatsApp contact
+  const [soloLocation, setSoloLocation] = useState('Lagos Hub'); // Location / Meetup node
 
   // Mock fallback array for merchants
   const defaultItemsList = uploadedItems.length > 0 ? uploadedItems : [
-    { id: 'p1', title: 'Premium Core i7 Developer Laptop', type: 'product', price: 650000, category: 'electronics' },
+    { id: 'p1', title: 'Premium Core i7 Developer Laptop (UK Used)', type: 'product', price: 650000, category: 'electronics' },
     { id: 'p2', title: 'Escrow Architectural Consultation API', type: 'service', price: 120000, category: 'education' },
     { id: 'p3', title: 'Branded Merchant Corporate Apparel', type: 'product', price: 15000, category: 'fashion' }
   ];
@@ -21,16 +22,16 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
   const [selectedItemId, setSelectedItemId] = useState(defaultItemsList[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Budget Matrix States
+  // Budget Matrix States (Amazon Sponsored Ad / Jiji Top Ad Model)
   const [dailyBudget, setDailyBudget] = useState(5000); 
   const [campaignDays, setCampaignDays] = useState(7);   
-  const [adPlacement, setAdPlacement] = useState('trending'); 
+  const [adPlacement, setAdPlacement] = useState('trending');  
   
   // Real-time Traffic Multiplier Matrix
   const placementMultipliers = {
     sidebar: { name: 'Contextual Sidebar Placement', multiplier: 12, conversions: 0.02 },
-    trending: { name: 'Main Marketplace Trending Ribbon', multiplier: 25, conversions: 0.05 },
-    broadcast: { name: 'Direct Push Notification Broadcast', multiplier: 45, conversions: 0.08 }
+    trending: { name: 'Main Marketplace Featured Buy-Box (Amazon Style)', multiplier: 25, conversions: 0.05 },
+    broadcast: { name: 'Jiji-Style Top Ad Classified Broadcast', multiplier: 45, conversions: 0.08 }
   };
 
   // Load Paystack script dynamically if not present
@@ -53,10 +54,10 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
   // Resolve current active asset details based on mode
   const currentAssetTitle = sellerMode === 'merchant' 
-    ? (selectedMerchantAsset ? selectedMerchantAsset.title : 'Selected Merchant Item')
-    : (soloTitle.trim() || 'Solo Direct Offer');
+    ? (selectedMerchantAsset ? selectedMerchantAsset.title : 'Selected Store Catalog Item')
+    : (soloTitle.trim() || 'Classified Direct Offer');
 
-  const currentAssetContact = sellerMode === 'solo' ? soloContact.trim() : 'Store Catalog Official';
+  const currentAssetContact = sellerMode === 'solo' ? soloContact.trim() : 'Amazon-Style Store Fulfillment';
 
   // Math Formulations
   const activePlacement = placementMultipliers[adPlacement];
@@ -68,14 +69,14 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
   const handleLaunchCampaign = () => {
     const computedTotal = dailyBudget * campaignDays;
     
-    // Validation for Solo Seller mode
+    // Validation for Solo Seller (Jiji) mode
     if (sellerMode === 'solo') {
       if (!soloTitle.trim()) {
-        alert('Please enter a title for your product or service offer.');
+        alert('Please enter a title for your classified item or service offer.');
         return;
       }
       if (!soloContact.trim()) {
-        alert('Please provide your direct contact number or WhatsApp link so customers can reach you.');
+        alert('Please provide your direct contact number or WhatsApp link so buyers can negotiate with you directly.');
         return;
       }
     }
@@ -101,9 +102,9 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             value: currentAssetTitle
           },
           {
-            display_name: "Seller Mode",
+            display_name: "Listing Model",
             variable_name: "seller_mode",
-            value: sellerMode === 'solo' ? 'Solo Direct Seller' : 'Store Merchant'
+            value: sellerMode === 'solo' ? 'Jiji Classified Direct' : 'Amazon Store Catalog'
           },
           {
             display_name: "Direct Contact",
@@ -118,10 +119,9 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
         ]
       },
       callback: function(response) {
-        // Payment successful callback handler
         const campaignPayload = {
           id: response.reference,
-          title: `Campaign Initiated for "${currentAssetTitle}"! Total billing matrix of ₦${computedTotal.toLocaleString()} verified via Paystack escrow`,
+          title: `Boost Active for "${currentAssetTitle}"! Total billing matrix of ₦${computedTotal.toLocaleString()} verified via escrow`,
           amount: computedTotal,
           price: computedTotal,
           category: sellerMode === 'solo' ? soloCategory : 'Promotion',
@@ -139,15 +139,13 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
           }
         };
 
-        console.log(`[Paystack Success] Reference: ${response.reference}`);
-
         if (typeof onTriggerCheckout === 'function') {
           onTriggerCheckout(campaignPayload);
         } else if (typeof setActiveTxPayload === 'function' && typeof setCurrentPage === 'function') {
           setActiveTxPayload(campaignPayload);
           setCurrentPage('escrow-checkout');
         } else {
-          alert(`Payment verified successfully! Campaign for "${currentAssetTitle}" active with reference: ${response.reference}`);
+          alert(`Boost verified successfully! Campaign for "${currentAssetTitle}" active with reference: ${response.reference}`);
         }
       },
       onClose: function() {
@@ -164,13 +162,13 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
       <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="text-[9px] bg-[#FF5A00] text-white font-black tracking-widest uppercase px-2 py-0.5 rounded">
-            📈 BOLD ACCELERATION ENGINE
+            📈 BOLD HYBRID ACCELERATION ENGINE
           </span>
-          <h1 className="text-2xl font-black text-white mt-1">Merchant & Solo Promotions Hub</h1>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Scale your catalog items or drop your direct WhatsApp contact for instant client conversions.</p>
+          <h1 className="text-2xl font-black text-white mt-1">Amazon Store & Jiji Classified Boosts</h1>
+          <p className="text-slate-400 text-xs mt-0.5 font-medium">Boost your Amazon-style store inventory or accelerate your Jiji-style direct WhatsApp/classified offers.</p>
         </div>
 
-        {/* SELLER MODE TOGGLE BUTTONS */}
+        {/* SELLER MODE TOGGLE BUTTONS (Amazon vs Jiji Model) */}
         <div className="flex bg-[#0B132B] p-1 rounded-xl border border-slate-800 w-full md:w-auto">
           <button
             type="button"
@@ -179,7 +177,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
               sellerMode === 'merchant' ? 'bg-[#FF5A00] text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            🏪 Store Merchant
+            📦 Amazon Store Catalog
           </button>
           <button
             type="button"
@@ -188,23 +186,23 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
               sellerMode === 'solo' ? 'bg-[#FF5A00] text-white' : 'text-slate-400 hover:text-white'
             }`}
           >
-            👤 Solo Direct Seller
+            💬 Jiji Direct Classified
           </button>
         </div>
       </div>
 
-      {/* STEP 1: CONDITIONAL ASSET PICKER / SOLO CREATOR INTERFACE */}
+      {/* STEP 1: CONDITIONAL ASSET PICKER / CLASSIFIED CREATOR INTERFACE */}
       {sellerMode === 'merchant' ? (
         <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div>
-              <h3 className="text-base font-black tracking-tight">🎯 Step 1: Select Catalog Asset to Promote</h3>
-              <p className="text-xs text-slate-400">Choose from your uploaded inventory items for this marketing campaign node.</p>
+              <h3 className="text-base font-black tracking-tight">🎯 Step 1: Select Store Catalog Asset to Promote</h3>
+              <p className="text-xs text-slate-400">Select an item from your Amazon-style multi-seller inventory to place in the Buy-Box.</p>
             </div>
             
             <input 
               type="text"
-              placeholder="Search items..."
+              placeholder="Search catalog items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-[#0B132B] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl px-3 py-2 w-full sm:w-64 focus:outline-none focus:border-[#FF5A00]"
@@ -227,7 +225,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                   <span className={`absolute top-2 right-2 text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded ${
                     item.type === 'service' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
                   }`}>
-                    {item.type}
+                    {item.type || 'Product'}
                   </span>
 
                   <div className="pr-12">
@@ -243,7 +241,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                     <span className="capitalize text-[9px] text-slate-500">Hub: {item.category || 'General'}</span>
                     {isSelected ? (
                       <span className="text-[#FF5A00] font-black flex items-center gap-1">
-                        ● Active Target
+                        ● Buy-Box Target
                       </span>
                     ) : (
                       <span className="text-slate-600">Select Item</span>
@@ -255,19 +253,19 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
           </div>
         </div>
       ) : (
-        /* SOLO SELLER DIRECT CONTACT & OFFER FORM */
+        /* JIJI-STYLE CLASSIFIED DIRECT CONTACT & OFFER FORM */
         <div className="bg-[#16223F] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="border-b border-slate-800 pb-3">
-            <h3 className="text-base font-black tracking-tight">👤 Step 1: Define Your Direct Offer & Contact</h3>
-            <p className="text-xs text-slate-400">Promote your independent service or product and let buyers reach you directly via WhatsApp or phone.</p>
+            <h3 className="text-base font-black tracking-tight">💬 Step 1: Define Your Jiji-Style Classified Offer</h3>
+            <p className="text-xs text-slate-400">Post an independent listing where interested buyers negotiate or contact you directly via WhatsApp or phone.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Product or Service Title</label>
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Classified Item Title</label>
               <input 
                 type="text"
-                placeholder="e.g., Custom UI/UX Design or Sneakers Wholesale"
+                placeholder="e.g., iPhone 13 Pro Max (UK Used) or Logistics Service"
                 value={soloTitle}
                 onChange={(e) => setSoloTitle(e.target.value)}
                 className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
@@ -275,10 +273,10 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Direct Contact (WhatsApp / Phone)</label>
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Direct WhatsApp / Phone Contact</label>
               <input 
                 type="text"
-                placeholder="e.g., +234 801 234 5678 or wa.me/234..."
+                placeholder="e.g., +234 801 234 5678"
                 value={soloContact}
                 onChange={(e) => setSoloContact(e.target.value)}
                 className="w-full bg-[#0B132B] border border-slate-800 text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-[#FF5A00]"
@@ -286,7 +284,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Estimated Price (₦)</label>
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Asking Price (₦)</label>
               <input 
                 type="number"
                 value={soloPrice}
@@ -296,7 +294,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Category Hub</label>
+              <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">Hub / Category Location</label>
               <select 
                 value={soloCategory}
                 onChange={(e) => setSoloCategory(e.target.value)}
@@ -305,6 +303,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 <option value="fashion">Men's Streetwear & Fashion</option>
                 <option value="electronics">Electronics & Gadgets</option>
                 <option value="services">Professional Services</option>
+                <option value="automotive">Automotive Port</option>
                 <option value="general">General Marketplace</option>
               </select>
             </div>
@@ -355,7 +354,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
 
           <div className="space-y-2">
             <label className="block text-[10px] font-black text-slate-300 uppercase tracking-wider">
-              Premium Placement Optimization Node
+              {sellerMode === 'merchant' ? 'Amazon Sponsored Buy-Box Tier' : 'Jiji Classified Promoted Tier'}
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div 
@@ -375,7 +374,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 }`}
               >
                 <p className="text-base">🔥</p>
-                <p className="text-[11px] font-black uppercase mt-1">Trending Ribbon</p>
+                <p className="text-[11px] font-black uppercase mt-1">Featured Buy-Box</p>
               </div>
 
               <div 
@@ -385,7 +384,7 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
                 }`}
               >
                 <p className="text-base">⚡</p>
-                <p className="text-[11px] font-black uppercase mt-1">Direct Push</p>
+                <p className="text-[11px] font-black uppercase mt-1">Top Ad Broadcast</p>
               </div>
             </div>
           </div>
@@ -401,11 +400,11 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
             <div className="mt-4 space-y-4">
               <div className="bg-[#0B132B] p-3 rounded-xl border border-dashed border-slate-800">
                 <span className="text-[9px] text-slate-400 font-black uppercase block mb-1">
-                  {sellerMode === 'solo' ? 'Solo Offer Target' : 'Store Catalog Target'}
+                  {sellerMode === 'solo' ? 'Classified Offer Target' : 'Store Catalog Target'}
                 </span>
                 <span className="text-xs font-bold text-white line-clamp-1">{currentAssetTitle}</span>
                 {sellerMode === 'solo' && soloContact && (
-                  <span className="text-[10px] text-[#FF5A00] block mt-1 font-semibold">📞 Direct Contact: {soloContact}</span>
+                  <span className="text-[10px] text-[#FF5A00] block mt-1 font-semibold">📞 WhatsApp Negotiation: {soloContact}</span>
                 )}
               </div>
 
@@ -438,10 +437,10 @@ export default function Promotions({ uploadedItems = [], onTriggerCheckout, setC
               onClick={handleLaunchCampaign}
               className="w-full bg-[#FF5A00] hover:brightness-110 text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-xl border-none shadow-lg cursor-pointer transition duration-200"
             >
-              🚀 Pay & Launch Campaign (Paystack)
+              🚀 Pay & Boost Campaign (Paystack)
             </button>
             <span className="text-[9px] text-slate-500 font-medium block text-center">
-              Secured by Paystack Escrow Gateway. Funds lock safely until milestone fulfillment.
+              Secured by Escrow & Paystack Gateway. Transparent hybrid commerce.
             </span>
           </div>
 

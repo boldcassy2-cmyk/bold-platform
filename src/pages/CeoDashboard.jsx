@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 
-export default function CeoDashboard({ transactions = [], setTransactions, items = [], usersList = [], setUsersList, staffLogs = [], userRole }) {
+export default function CeoDashboard({ 
+  transactions = [], 
+  setTransactions, 
+  items = [], 
+  usersList = [], 
+  setUsersList, 
+  staffLogs = [], 
+  userRole,
+  setCurrentPage 
+}) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // New Staff Form States
@@ -51,35 +60,65 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
     }
   };
 
+  const handleLockTerminal = () => {
+    localStorage.removeItem('bold_ceo_auth');
+    if (typeof setCurrentPage === 'function') {
+      setCurrentPage('marketplace');
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      {/* CEO Top Banner */}
-      <div className="bg-gradient-to-r from-amber-600 via-[#FF5A00] to-[#0B132B] p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <span className="bg-slate-950/40 text-amber-300 text-[10px] font-mono uppercase tracking-widest px-3 py-1 rounded-full border border-amber-400/30">
-            👑 Master Authority Clearance
-          </span>
-          <h1 className="text-2xl md:text-3xl font-black text-white mt-2 tracking-tight">
+    <div className="max-w-[1440px] mx-auto px-4 py-6 text-slate-100 space-y-6 pb-32 font-sans">
+      
+      {/* =========================================================
+          1. CEO COMMAND TOP BANNER
+      ========================================================= */}
+      <div className="bg-[#131921] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-[#ff9900]/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="space-y-1.5 z-10">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#ff9900] bg-[#ff9900]/10 px-2.5 py-0.5 rounded border border-[#ff9900]/30">
+              👑 Master Authority Clearance
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900">
+              ● Live Protocol
+            </span>
+          </div>
+
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight">
             CEO Command & Control Center
           </h1>
-          <p className="text-xs text-slate-100/90 mt-1">
+          
+          <p className="text-slate-400 text-xs font-mono">
             Total Oversight: Finance, Logistics, HR, Inspection, & Staff Telemetry
           </p>
         </div>
 
-        <div className="flex gap-3">
-          <div className="bg-slate-950/60 backdrop-blur px-4 py-2.5 rounded-xl border border-white/10 text-right">
-            <span className="text-[10px] text-slate-400 block uppercase">Total Volume</span>
-            <span className="text-sm font-black text-emerald-400">₦{totalVolume.toLocaleString()}</span>
+        <div className="flex items-center gap-3 z-10 w-full lg:w-auto flex-wrap">
+          <div className="bg-[#161f2d] px-4 py-3 rounded-xl border border-slate-800 text-left">
+            <span className="text-[10px] text-slate-400 block uppercase font-mono">Total Volume</span>
+            <span className="text-sm font-bold text-emerald-400 font-mono">₦{totalVolume.toLocaleString()}</span>
           </div>
-          <div className="bg-slate-950/60 backdrop-blur px-4 py-2.5 rounded-xl border border-white/10 text-right">
-            <span className="text-[10px] text-slate-400 block uppercase">Active Escrows</span>
-            <span className="text-sm font-black text-amber-400">{activeEscrowCount}</span>
+          <div className="bg-[#161f2d] px-4 py-3 rounded-xl border border-slate-800 text-left">
+            <span className="text-[10px] text-slate-400 block uppercase font-mono">Active Escrows</span>
+            <span className="text-sm font-bold text-[#ff9900] font-mono">{activeEscrowCount}</span>
           </div>
+          
+          <button
+            type="button"
+            onClick={handleLockTerminal}
+            className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 text-xs font-mono font-bold px-4 py-3 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md"
+            title="Lock terminal and clear session"
+          >
+            <span>🔒</span> Lock Terminal
+          </button>
         </div>
       </div>
 
-      {/* Departmental & Staff Navigation Tabs */}
+      {/* =========================================================
+          2. DEPARTMENTAL & STAFF NAVIGATION TABS
+      ========================================================= */}
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
         {[
           { id: 'overview', label: '📊 Executive Overview' },
@@ -93,10 +132,10 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`text-xs font-black px-4 py-2.5 rounded-xl border-none cursor-pointer transition-all ${
+            className={`text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer ${
               activeTab === tab.id 
-                ? 'bg-[#FF5A00] text-white shadow-[0_0_12px_rgba(255,90,0,0.4)]' 
-                : 'bg-[#16223F] hover:bg-slate-800 text-slate-300'
+                ? 'bg-[#ffd814] text-[#0f1111] shadow-md font-extrabold' 
+                : 'bg-[#131921] hover:bg-slate-800 text-slate-300 border border-slate-800'
             }`}
           >
             {tab.label}
@@ -104,39 +143,45 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
         ))}
       </div>
 
-      {/* Tab Content Display */}
+      {/* =========================================================
+          3. TAB CONTENT DISPLAY
+      ========================================================= */}
       <div className="space-y-6">
+        
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-bold uppercase">Total Platform Catalog</span>
-              <p className="text-2xl font-black text-white mt-1">{items.length} Active Items</p>
+            <div className="bg-[#131921] p-5 rounded-2xl border border-slate-800 shadow-md hover:border-slate-700 transition space-y-3">
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Platform Catalog</span>
+              <p className="text-2xl font-bold text-white font-mono">{items.length} Active Items</p>
               <button 
                 type="button" 
                 onClick={() => setActiveTab('finance')}
-                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+                className="text-xs text-[#0066c0] font-bold hover:underline bg-transparent border-none cursor-pointer block pt-1"
               >
                 View Financial Logs →
               </button>
             </div>
-            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-bold uppercase">Total Registered Users</span>
-              <p className="text-2xl font-black text-white mt-1">{usersList.length} Accounts</p>
+
+            <div className="bg-[#131921] p-5 rounded-2xl border border-slate-800 shadow-md hover:border-slate-700 transition space-y-3">
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Registered Users</span>
+              <p className="text-2xl font-bold text-white font-mono">{usersList.length} Accounts</p>
               <button 
                 type="button" 
                 onClick={() => setActiveTab('hr')}
-                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+                className="text-xs text-[#0066c0] font-bold hover:underline bg-transparent border-none cursor-pointer block pt-1"
               >
                 Inspect HR Directory →
               </button>
             </div>
-            <div className="bg-[#16223F] p-5 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-bold uppercase">Staff Action Audit Trail</span>
-              <p className="text-2xl font-black text-white mt-1">{staffLogs.length} Actions Logged</p>
+
+            <div className="bg-[#131921] p-5 rounded-2xl border border-slate-800 shadow-md hover:border-slate-700 transition space-y-3">
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Staff Action Audit Trail</span>
+              <p className="text-2xl font-bold text-white font-mono">{staffLogs.length} Actions Logged</p>
               <button 
                 type="button" 
                 onClick={() => setActiveTab('telemetry')}
-                className="mt-4 text-xs text-[#FF5A00] font-bold hover:underline bg-transparent border-none cursor-pointer"
+                className="text-xs text-[#0066c0] font-bold hover:underline bg-transparent border-none cursor-pointer block pt-1"
               >
                 View Telemetry →
               </button>
@@ -144,35 +189,41 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
           </div>
         )}
 
+        {/* FINANCE TAB */}
         {activeTab === 'finance' && (
-          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-lg font-black text-white">💰 Finance Department Vault & Ledger</h2>
-            <p className="text-xs text-slate-400">Monitoring all escrow disbursements, gateway inflows, and revenue collections.</p>
+          <div className="bg-[#131921] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>💰</span> Finance Department Vault & Ledger
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Monitoring all escrow disbursements, gateway inflows, and revenue collections.</p>
+            </div>
+
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
-                  <tr>
-                    <th className="p-3">TX ID</th>
-                    <th className="p-3">Description</th>
-                    <th className="p-3">Amount</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Date</th>
+              <table className="w-full text-left text-xs text-slate-300 border-collapse">
+                <thead>
+                  <tr className="bg-[#161f2d] border-b border-slate-800 text-slate-400 uppercase tracking-wider font-mono">
+                    <th className="py-3 px-4">TX ID</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-slate-800/80">
                   {transactions.map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-slate-900/40">
-                      <td className="p-3 font-mono font-bold text-[#FF5A00]">{tx.id}</td>
-                      <td className="p-3">{tx.title}</td>
-                      <td className="p-3 font-mono font-bold">₦{Number(tx.amount || 0).toLocaleString()}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                          tx.status === 'Completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'
+                    <tr key={idx} className="hover:bg-slate-900/50 transition">
+                      <td className="py-3 px-4 font-mono font-bold text-[#ff9900]">{tx.id}</td>
+                      <td className="py-3 px-4 text-white font-medium">{tx.title}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-white">₦{Number(tx.amount || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                          tx.status === 'Completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-amber-950 text-amber-400 border border-amber-900'
                         }`}>
                           {tx.status}
                         </span>
                       </td>
-                      <td className="p-3 font-mono">{tx.date}</td>
+                      <td className="py-3 px-4 font-mono text-slate-400">{tx.date}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -181,36 +232,46 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
           </div>
         )}
 
+        {/* LOGISTICS TAB */}
         {activeTab === 'logistics' && (
-          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-lg font-black text-white">🚚 Logistics Hubs & Dispatch Operations</h2>
-            <p className="text-xs text-slate-400">Manage regional fulfillment hubs (Lagos Hub, Abuja Node) and delivery statuses.</p>
+          <div className="bg-[#131921] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>🚚</span> Logistics Hubs & Dispatch Operations
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Manage regional fulfillment hubs (Lagos Hub, Abuja Node) and delivery statuses.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <span className="text-xs font-bold text-emerald-400 uppercase">● Lagos Central Hub</span>
-                <p className="text-xs text-slate-300 mt-2">Active Dispatch Officers: 4</p>
-                <p className="text-xs text-slate-300">Status: Operational & Fully Synchronized</p>
+              <div className="bg-[#161f2d] p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">● Lagos Central Hub</span>
+                <p className="text-xs text-slate-300">Active Dispatch Officers: <strong className="text-white">4</strong></p>
+                <p className="text-xs text-slate-300">Status: <strong className="text-emerald-400">Operational & Fully Synchronized</strong></p>
               </div>
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <span className="text-xs font-bold text-emerald-400 uppercase">● Abuja Regional Node</span>
-                <p className="text-xs text-slate-300 mt-2">Active Dispatch Officers: 2</p>
-                <p className="text-xs text-slate-300">Status: Operational & Fully Synchronized</p>
+
+              <div className="bg-[#161f2d] p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">● Abuja Regional Node</span>
+                <p className="text-xs text-slate-300">Active Dispatch Officers: <strong className="text-white">2</strong></p>
+                <p className="text-xs text-slate-300">Status: <strong className="text-emerald-400">Operational & Fully Synchronized</strong></p>
               </div>
             </div>
           </div>
         )}
 
+        {/* HR TAB */}
         {activeTab === 'hr' && (
           <div className="space-y-6">
             {/* Provision Staff Card */}
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="bg-[#131921] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
               <div>
-                <h3 className="text-lg font-black text-white">⚡ Provision New Staff Account</h3>
-                <p className="text-xs text-slate-400">Create operational credentials and assign departmental clearance.</p>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>⚡</span> Provision New Staff Account
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Create operational credentials and assign departmental clearance.</p>
               </div>
 
               {staffCreationStatus && (
-                <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs px-4 py-3 rounded-xl">
+                <div className="bg-emerald-950/60 border border-emerald-900 text-emerald-300 text-xs px-4 py-3 rounded-xl">
                   {staffCreationStatus}
                 </div>
               )}
@@ -224,7 +285,7 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
                     value={newStaffName} 
                     onChange={(e) => setNewStaffName(e.target.value)}
                     required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                    className="w-full bg-[#161f2d] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff9900]"
                   />
                 </div>
 
@@ -236,7 +297,7 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
                     value={newStaffEmail} 
                     onChange={(e) => setNewStaffEmail(e.target.value)}
                     required
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                    className="w-full bg-[#161f2d] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff9900]"
                   />
                 </div>
 
@@ -245,7 +306,7 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
                   <select 
                     value={newStaffDepartment} 
                     onChange={(e) => setNewStaffDepartment(e.target.value)}
-                    className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF5A00]"
+                    className="w-full bg-[#161f2d] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff9900]"
                   >
                     <option value="finance">Finance Vault</option>
                     <option value="inspection">Inspection Hub</option>
@@ -257,35 +318,40 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
 
                 <button 
                   type="submit"
-                  className="bg-[#FF5A00] hover:bg-[#e05000] text-white text-xs font-black px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                  className="bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
                 >
                   Create Account 🚀
                 </button>
               </form>
             </div>
 
-            {/* Staff Directory Table with ID Card Tracking */}
-            <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-              <h2 className="text-lg font-black text-white">👥 Human Resources & Staff ID Card Directory</h2>
-              <p className="text-xs text-slate-400">Review staff accounts, department clearances, and click ID status to toggle issuance.</p>
+            {/* Staff Directory Table */}
+            <div className="bg-[#131921] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>👥</span> Human Resources & Staff ID Card Directory
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">Review staff accounts, department clearances, and click ID status to toggle issuance.</p>
+              </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-900 text-slate-400 uppercase font-mono">
-                    <tr>
-                      <th className="p-3">Staff Name</th>
-                      <th className="p-3">Email</th>
-                      <th className="p-3">Role & Dept</th>
-                      <th className="p-3">ID Card Status</th>
-                      <th className="p-3">Account Status</th>
+                <table className="w-full text-left text-xs text-slate-300 border-collapse">
+                  <thead>
+                    <tr className="bg-[#161f2d] border-b border-slate-800 text-slate-400 uppercase tracking-wider font-mono">
+                      <th className="py-3 px-4">Staff Name</th>
+                      <th className="py-3 px-4">Email</th>
+                      <th className="py-3 px-4">Role & Dept</th>
+                      <th className="py-3 px-4">ID Card Status</th>
+                      <th className="py-3 px-4">Account Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
+                  <tbody className="divide-y divide-slate-800/80">
                     {usersList.map((usr, idx) => (
-                      <tr key={idx} className="hover:bg-slate-900/40">
-                        <td className="p-3 font-bold text-white">{usr.name}</td>
-                        <td className="p-3 font-mono">{usr.email}</td>
-                        <td className="p-3 flex items-center gap-2">
-                          <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                      <tr key={idx} className="hover:bg-slate-900/50 transition">
+                        <td className="py-3 px-4 font-bold text-white">{usr.name}</td>
+                        <td className="py-3 px-4 font-mono text-slate-400">{usr.email}</td>
+                        <td className="py-3 px-4 flex items-center gap-2">
+                          <span className="bg-blue-950 text-blue-400 border border-blue-900 px-2 py-0.5 rounded text-[10px] font-bold">
                             {usr.role}
                           </span>
                           {usr.department && (
@@ -294,21 +360,25 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
                             </span>
                           )}
                         </td>
-                        <td className="p-3">
+                        <td className="py-3 px-4">
                           <button
                             type="button"
                             onClick={() => toggleIdCardStatus(idx)}
                             title="Click to toggle ID card status"
-                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer transition-colors ${
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer transition ${
                               usr.idCardStatus === 'Issued'
-                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800 hover:bg-emerald-900'
-                                : 'bg-amber-950 text-amber-400 border-amber-800 hover:bg-amber-900'
+                                ? 'bg-emerald-950 text-emerald-400 border-emerald-900 hover:bg-emerald-900'
+                                : 'bg-amber-950 text-amber-400 border-amber-900 hover:bg-amber-900'
                             }`}
                           >
                             {usr.idCardStatus || 'Pending'} 🪪
                           </button>
                         </td>
-                        <td className="p-3 text-emerald-400 font-bold">{usr.status}</td>
+                        <td className="py-3 px-4 text-emerald-400 font-bold">
+                          <span className="bg-emerald-950 text-emerald-400 border border-emerald-900 px-2 py-0.5 rounded text-[10px]">
+                            {usr.status}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -318,32 +388,44 @@ export default function CeoDashboard({ transactions = [], setTransactions, items
           </div>
         )}
 
+        {/* INSPECTION TAB */}
         {activeTab === 'inspection' && (
-          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-lg font-black text-white">🔍 Item Inspection & Quality Control</h2>
-            <p className="text-xs text-slate-400">Review items pending physical verification at escrow hubs before release to buyers.</p>
-            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
+          <div className="bg-[#131921] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>🔍</span> Item Inspection & Quality Control
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Review items pending physical verification at escrow hubs before release to buyers.</p>
+            </div>
+            <div className="bg-[#161f2d] p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
               <p>All active catalog items are currently verified. No inspection anomalies reported.</p>
             </div>
           </div>
         )}
 
+        {/* TELEMETRY TAB */}
         {activeTab === 'telemetry' && (
-          <div className="bg-[#16223F] p-6 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-lg font-black text-white">⚡ Security Telemetry & Staff Action Logs</h2>
-            <p className="text-xs text-slate-400">Real-time audit trail recording every administrative and staff action across the protocol.</p>
+          <div className="bg-[#131921] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>⚡</span> Security Telemetry & Staff Action Logs
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Real-time audit trail recording every administrative and staff action across the protocol.</p>
+            </div>
+            
             <div className="space-y-2">
               {staffLogs.map((log, idx) => (
-                <div key={idx} className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <div key={idx} className="bg-[#161f2d] p-3.5 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-bold text-[#FF5A00]">{log.staff}</span>: <span className="text-slate-200">{log.action}</span>
+                    <span className="font-bold text-[#ff9900]">{log.staff}</span>: <span className="text-slate-200">{log.action}</span>
                   </div>
-                  <span className="font-mono text-slate-500 text-[10px]">{log.timestamp}</span>
+                  <span className="font-mono text-slate-400 text-[10px]">{log.timestamp}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

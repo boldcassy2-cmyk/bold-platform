@@ -11,7 +11,7 @@ export default function CustomerDashboard({
   onOpenProductUpload, 
   onDeleteListing,
   onRefreshListings,
-  onSignOut // Optional custom logout prop if handled in App.jsx
+  onSignOut 
 }) {
   const displayName = user?.name || user?.fullName || (user?.email ? user.email.split('@')[0] : 'Valued Member');
   const displayEmail = user?.email || 'member@bold.ng';
@@ -27,7 +27,7 @@ export default function CustomerDashboard({
 
   // Edit State
   const [editingItem, setEditingItem] = useState(null);
-  const [editFormData, setEditFormData] = useState({ title: '', price: '', category: '' });
+  const [editFormData, setEditFormData] = useState({ title: '', price: '', category: '', whatsappNumber: '' });
 
   // Buyer Detail Modal State
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -40,7 +40,7 @@ export default function CustomerDashboard({
     const activeUser = auth.currentUser || user;
 
     if (!activeUser || !activeUser.email) {
-      alert('🔒 Access Restricted: You must log in or sign up for a bold.ng account to upload or buy products.');
+      alert('🔒 Access Restricted: You must log in or sign up for a bold.ng account to manage your store.');
       if (typeof setCurrentPage === 'function') {
         setCurrentPage('auth'); 
       }
@@ -58,18 +58,16 @@ export default function CustomerDashboard({
     if (!confirmLogout) return;
 
     try {
-      // 1. If custom sign-out handler was passed from parent component (App.jsx)
       if (typeof onSignOut === 'function') {
         onSignOut();
         return;
       }
 
-      // 2. Otherwise direct Firebase auth sign out
       await signOut(auth);
       alert('You have been securely logged out.');
       
       if (typeof setCurrentPage === 'function') {
-        setCurrentPage('auth'); // Redirect to login/signup page
+        setCurrentPage('auth');
       } else {
         window.location.reload();
       }
@@ -112,7 +110,8 @@ export default function CustomerDashboard({
       setEditFormData({
         title: item.title || item.meta || '',
         price: item.price || '',
-        category: item.category || 'General'
+        category: item.category || 'General',
+        whatsappNumber: item.whatsappNumber || ''
       });
     });
   };
@@ -125,7 +124,8 @@ export default function CustomerDashboard({
           title: editFormData.title,
           meta: editFormData.title,
           price: Number(editFormData.price),
-          category: editFormData.category
+          category: editFormData.category,
+          whatsappNumber: editFormData.whatsappNumber
         });
         alert('Listing updated successfully!');
         setEditingItem(null);
@@ -145,7 +145,7 @@ export default function CustomerDashboard({
     <div className="max-w-[1440px] mx-auto px-4 py-6 text-slate-100 space-y-6 pb-32 font-sans">
       
       {/* =========================================================
-          1. AMAZON MERCHANT & JIJI SOLO SELLER TOP BANNER + LOGOUT
+          1. MERCHANT HUB TOP BANNER + LOGOUT
       ========================================================= */}
       <div className="bg-[#131921] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-[#ff9900]/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -159,20 +159,19 @@ export default function CustomerDashboard({
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#ff9900] bg-[#ff9900]/10 px-2.5 py-0.5 rounded border border-[#ff9900]/30">
-                🏢 Verified Merchant Hub
+                🏢 Verified Merchant & Classified Hub
               </span>
               <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900">
                 ● Active Session
               </span>
             </div>
             
-            {/* USER NAME DISPLAYED CLEARLY */}
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Welcome back, {displayName}!
             </h1>
             
             <p className="text-slate-400 text-xs font-mono">
-              {displayEmail} • Manage your store, inventory, and escrow payouts.
+              {displayEmail} • Manage direct listings, WhatsApp leads, and escrow payouts.
             </p>
           </div>
         </div>
@@ -182,7 +181,7 @@ export default function CustomerDashboard({
           <button
             type="button"
             onClick={handleOpenStoreUpgrade}
-            className="flex-1 sm:flex-none px-4 py-3 bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] text-xs font-bold rounded-xl transition shadow cursor-pointer flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none px-4 py-3 bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
           >
             <span>🏪</span> Add New Inventory
           </button>
@@ -195,7 +194,6 @@ export default function CustomerDashboard({
             <span>🛍️</span> Marketplace
           </button>
           
-          {/* SIGN OUT / LOGOUT BUTTON */}
           <button
             type="button"
             onClick={handleSignOut}
@@ -208,7 +206,7 @@ export default function CustomerDashboard({
       </div>
 
       {/* =========================================================
-          2. AMAZON SELLER CENTRAL METRICS GRID
+          2. SELLER CENTRAL METRICS GRID
       ========================================================= */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-[#161f2d] p-5 rounded-xl border border-slate-800 shadow-md flex flex-col justify-between hover:border-slate-700 transition">
@@ -245,16 +243,16 @@ export default function CustomerDashboard({
       </div>
 
       {/* =========================================================
-          3. MERCHANT INVENTORY MANAGEMENT
+          3. MERCHANT INVENTORY & DIRECT CLASSIFIED LISTINGS
       ========================================================= */}
       <div className="bg-[#131921] rounded-2xl p-6 sm:p-7 border border-slate-800 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span>📦</span> Manage Inventory & Storefront Ads
+              <span>📦</span> Manage Inventory & Direct WhatsApp Listings
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Edit pricing, check promotional boost placement, or remove products instantly.
+              Edit pricing, check promotional boost placement, or manage direct classified chats.
             </p>
           </div>
 
@@ -289,7 +287,7 @@ export default function CustomerDashboard({
             <div className="text-4xl">🚀</div>
             <h3 className="text-white font-bold text-sm">No Inventory Listed Yet</h3>
             <p className="text-slate-400 text-xs max-w-sm mx-auto">
-              Start selling to thousands on bold.ng by uploading your items with secure escrow protection.
+              Start selling to thousands on bold.ng by uploading your items with secure escrow or direct WhatsApp chat.
             </p>
             <button
               type="button"
@@ -333,12 +331,21 @@ export default function CustomerDashboard({
                             value={editFormData.title} 
                             onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
                             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                            placeholder="Title"
                           />
                           <input 
                             type="number" 
                             value={editFormData.price} 
                             onChange={(e) => setEditFormData({...editFormData, price: e.target.value})}
                             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                            placeholder="Price (₦)"
+                          />
+                          <input 
+                            type="text" 
+                            value={editFormData.whatsappNumber} 
+                            onChange={(e) => setEditFormData({...editFormData, whatsappNumber: e.target.value})}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                            placeholder="WhatsApp Number"
                           />
                         </div>
                       ) : (
@@ -350,6 +357,9 @@ export default function CustomerDashboard({
                             {item.title || item.meta}
                           </h4>
                           <p className="text-xs font-mono font-bold text-white mt-0.5">₦{Number(item.price || 0).toLocaleString()}</p>
+                          {item.whatsappNumber && (
+                            <p className="text-[10px] text-emerald-400 font-mono mt-0.5">📱 WhatsApp: {item.whatsappNumber}</p>
+                          )}
                         </>
                       )}
                     </div>
@@ -419,7 +429,6 @@ export default function CustomerDashboard({
               <tbody className="divide-y divide-slate-800/80">
                 {myListings.map((item) => {
                   const itemId = item.id || item.docId;
-                  const isEditing = editingItem === itemId;
                   const placement = item.promotionSettings?.adPlacement || 'Standard Feed';
 
                   return (
@@ -500,7 +509,7 @@ export default function CustomerDashboard({
       </div>
 
       {/* =========================================================
-          5. PRODUCT DETAILS MODAL
+          5. PRODUCT DETAILS & DIRECT CONTACT MODAL
       ========================================================= */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -553,10 +562,24 @@ export default function CustomerDashboard({
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 block">Escrow Status</span>
-                <span className="text-emerald-400 font-bold block mt-0.5">Secured Node</span>
+                <span className="text-slate-400 block">Escrow / Direct Status</span>
+                <span className="text-emerald-400 font-bold block mt-0.5">Verified Node</span>
               </div>
             </div>
+
+            {selectedProduct.whatsappNumber && (
+              <div className="bg-emerald-950/40 border border-emerald-900/60 p-3 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-emerald-300 font-bold">Direct Vendor WhatsApp:</span>
+                <a 
+                  href={`https://wa.me/${selectedProduct.whatsappNumber}?text=Hello, I am interested in your listing: ${selectedProduct.title || selectedProduct.meta}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition"
+                >
+                  Chat on WhatsApp 💬
+                </a>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button

@@ -5,10 +5,8 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // Core UI Components
 import Home from './pages/Home';
-
 import Footer from './components/Footer';
 import RoleGuard from './components/RoleGuard';
-
 
 // Dynamic Lazy Imports
 const AuthPortal = lazy(() => import('./pages/AuthPortal'));
@@ -27,17 +25,17 @@ const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
 const DirectVendorListing = lazy(() => import('./pages/DirectVendorListing'));
 const AdminActivityMonitor = lazy(() => import('./pages/AdminActivityMonitor'));
 
-{/* Portal & Informational Views (Footer Navigation) */}
+// Portal & Informational Views (Footer Navigation)
 const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
 const AutomotivePort = lazy(() => import('./pages/AutomotivePort'));
 const HowEscrowWorks = lazy(() => import('./pages/HowEscrowWorks'));
-
 const MerchantMatrix = lazy(() => import('./pages/MerchantMatrix'));
 const ApplyAsVendor = lazy(() => import('./pages/ApplyAsVendor'));
 const EscrowGuidelines = lazy(() => import('./pages/EscrowGuidelines'));
 const SecurityTelemetry = lazy(() => import('./pages/SecurityTelemetry'));
 const TermsOfProtocol = lazy(() => import('./pages/TermsOfProtocol'));
-const FooterPages = lazy(() => import('./pages/FooterPages')); // Make sure to import this too
+const FooterPages = lazy(() => import('./pages/FooterPages'));
+
 // CEO Email Fallbacks
 const CEO_EMAILS = [
   'boldcassy2@gmail.com'
@@ -477,6 +475,8 @@ export default function App() {
         return <SecurityTelemetry onNavigate={setCurrentPage} />;
       case 'terms':
         return <TermsOfProtocol onNavigate={setCurrentPage} />;
+      case 'footer-pages':
+        return <FooterPages onNavigate={setCurrentPage} />;
       case 'addproduct':
         return <ProductCatalogForm onAddProductComplete={handleAddNewProduct} setCurrentPage={setCurrentPage} />;
       case 'checkout':
@@ -754,17 +754,17 @@ export default function App() {
             <button 
               type="button" 
               onClick={() => setCurrentPage('home')}
-              className="text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
+              className="text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              &larr; Back to Main Hub
+              ← Back to Main Gateway
             </button>
           </div>
         )}
 
-        <main className="max-w-7xl mx-auto px-4 py-6 w-full">
+        <main className="min-h-[70vh]">
           <Suspense fallback={
             <div className="py-20 text-center font-mono text-xs text-slate-400">
-              Loading Module View...
+              Loading Secure Module...
             </div>
           }>
             {renderCurrentView()}
@@ -772,7 +772,7 @@ export default function App() {
         </main>
       </div>
 
-      <Footer footerNav={FOOTER_NAV} onNavigate={setCurrentPage} />
+      <Footer onNavigate={setCurrentPage} footerNav={FOOTER_NAV} />
     </div>
   );
 }

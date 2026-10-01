@@ -1,14 +1,23 @@
+// src/components/AppRouter.jsx
 import React, { useState } from 'react';
 import AuthGuard from './AuthGuard';
 import ProductCatalogForm from './ProductCatalogForm';
+import EscrowTracker from './EscrowTracker';
+import SellerDashboard from './SellerDashboard';
+import SearchBar from './SearchBar';
+import RelatedProducts from './RelatedProducts';
+import { BOLD_CATEGORIES } from '../data/categories';
 
 export default function AppRouter({ currentUser, setCurrentPage }) {
   const [activeTab, setActiveTab] = useState('marketplace');
+  const [userRole, setUserRole] = useState('merchant'); // 'merchant' or 'solo_seller'
 
-  // Helper to handle navigation to login/register pages
   const handleNavigateToAuth = (mode) => {
-    // mode can be 'login' or 'register'
     setCurrentPage(mode); 
+  };
+
+  const handleSearchFilter = (searchParams) => {
+    console.log("Filtering marketplace with:", searchParams);
   };
 
   return (
@@ -16,13 +25,18 @@ export default function AppRouter({ currentUser, setCurrentPage }) {
       {/* Navigation Header with Auth Status */}
       <header className="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-[#16223F]">
         <h1 className="text-lg font-black tracking-wider text-[#FF5A00]">bold.ng</h1>
-        <div className="flex gap-4">
+        
+        <div className="flex gap-4 items-center">
           <button onClick={() => setActiveTab('marketplace')} className="text-xs font-bold hover:text-[#FF5A00] transition-colors">
             Marketplace
           </button>
-          <button onClick={() => setActiveTab('upload')} className="text-xs font-bold hover:text-[#FF5A00] transition-colors">
-            Upload Product
+          <button onClick={() => setActiveTab('dashboard')} className="text-xs font-bold hover:text-[#FF5A00] transition-colors">
+            My Dashboard
           </button>
+          <button onClick={() => setActiveTab('upload')} className="text-xs font-bold hover:text-[#FF5A00] transition-colors">
+            Post Ad / Product
+          </button>
+
           {!currentUser ? (
             <button 
               onClick={() => setCurrentPage('login')}
@@ -32,7 +46,7 @@ export default function AppRouter({ currentUser, setCurrentPage }) {
             </button>
           ) : (
             <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
-              ● Online
+              ● Online ({currentUser.email})
             </span>
           )}
         </div>
@@ -40,6 +54,42 @@ export default function AppRouter({ currentUser, setCurrentPage }) {
 
       {/* Main Content Body */}
       <main className="p-6">
+        
+        {/* TAB 1: MARKETPLACE & SEARCH */}
+        {activeTab === 'marketplace' && (
+          <div className="space-y-6">
+            <SearchBar onSearch={handleSearchFilter} />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="h-40 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500">
+                  Product Image
+                </div>
+                <h3 className="font-bold text-sm">HP Folio i7 Touchscreen</h3>
+                <p className="text-xs text-[#FF5A00] font-black">₦350,000</p>
+
+                {/* BUY BUTTON GUARDED WITH ESCROW READY */}
+                <AuthGuard 
+                  currentUser={currentUser} 
+                  onNavigateToAuth={handleNavigateToAuth}
+                  actionTitle="Sign In to Secure Purchase"
+                >
+                  <button
+                    onClick={() => alert(`Initiating Escrow Order for authenticated user: ${currentUser.email}`)}
+                    className="w-full bg-[#FF5A00] hover:bg-[#e04f00] text-white font-black text-xs uppercase tracking-wider py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+                  >
+                    Buy with Escrow Protection
+                  </button>
+                </AuthGuard>
+              </div>
+            </div>
+
+            {/* Related Items Component preview */}
+            <RelatedProducts currentProductId="prod_1" subcategoryId="Computers & Laptops" />
+          </div>
+        )}
+
+        {/* TAB 2: UPLOAD PRODUCT / POST AD */}
         {activeTab === 'upload' && (
           <AuthGuard 
             currentUser={currentUser} 
@@ -54,7 +104,7 @@ export default function AppRouter({ currentUser, setCurrentPage }) {
                   vendorEmail: currentUser.email,
                   createdAt: new Date().toISOString()
                 };
-                console.slog("Saving product:", verifiedPayload);
+                console.log("Saving product:", verifiedPayload);
                 setActiveTab('marketplace');
               }}
               setCurrentPage={() => setActiveTab('marketplace')}
@@ -62,32 +112,24 @@ export default function AppRouter({ currentUser, setCurrentPage }) {
           </AuthGuard>
         )}
 
-        {activeTab === 'marketplace' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Example Product Card */}
-            <div className="bg-[#16223F] border border-slate-800 rounded-2xl p-4 space-y-3">
-              <div className="h-40 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500">
-                Product Image
-              </div>
-              <h3 className="font-bold text-sm">Premium Streetwear Hoodie</h3>
-              <p className="text-xs text-[#FF5A00] font-black">₦45,000</p>
-
-              {/* BUY BUTTON GUARDED */}
-              <AuthGuard 
-                currentUser={currentUser} 
-                onNavigateToAuth={handleNavigateToAuth}
-                actionTitle="Sign In to Purchase"
-              >
-                <button
-                  onClick={() => alert(`Proceeding to checkout for authenticated user: ${currentUser.email}`)}
-                  className="w-full bg-[#FF5A00] hover:bg-[#e04f00] text-white font-black text-xs uppercase tracking-wider py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
-                >
-                  Buy Now
-                </button>
-              </AuthGuard>
+        {/* TAB 3: SELLER PERFORMANCE & ESCROW DASHBOARD */}
+        {activeTab === 'dashboard' && (
+          <AuthGuard 
+            currentUser={currentUser} 
+            onNavigateToAuth={handleNavigateToAuth}
+            actionTitle="Sign In to Access Dashboard"
+          >
+            <div className="space-y-6">
+              <SellerDashboard userId={currentUser?.uid} userType={userRole} />
+              <EscrowTracker 
+                order={{ productTitle: "HP Folio i7", amount: 350000, status: "escrow_funded" }} 
+                userRole="buyer" 
+                onUpdateStatus={(status) => alert(`Status updated to: ${status}`)} 
+              />
             </div>
-          </div>
+          </AuthGuard>
         )}
+
       </main>
     </div>
   );
