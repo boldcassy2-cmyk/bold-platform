@@ -5,6 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // Core UI Components
 import Home from './pages/Home';
+
 import Footer from './components/Footer';
 import RoleGuard from './components/RoleGuard';
 
@@ -26,7 +27,7 @@ const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
 const DirectVendorListing = lazy(() => import('./pages/DirectVendorListing'));
 const AdminActivityMonitor = lazy(() => import('./pages/AdminActivityMonitor'));
 
-// Portal & Informational Views (Footer Navigation)
+{/* Portal & Informational Views (Footer Navigation) */}
 const StreetwearNode = lazy(() => import('./pages/StreetwearNode'));
 const AutomotivePort = lazy(() => import('./pages/AutomotivePort'));
 const HowEscrowWorks = lazy(() => import('./pages/HowEscrowWorks'));
@@ -36,7 +37,7 @@ const ApplyAsVendor = lazy(() => import('./pages/ApplyAsVendor'));
 const EscrowGuidelines = lazy(() => import('./pages/EscrowGuidelines'));
 const SecurityTelemetry = lazy(() => import('./pages/SecurityTelemetry'));
 const TermsOfProtocol = lazy(() => import('./pages/TermsOfProtocol'));
-
+const FooterPages = lazy(() => import('./pages/FooterPages')); // Make sure to import this too
 // CEO Email Fallbacks
 const CEO_EMAILS = [
   'boldcassy2@gmail.com'

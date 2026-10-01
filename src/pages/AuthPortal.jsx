@@ -1,697 +1,293 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  sendEmailVerification, 
-  sendPasswordResetEmail,
-  updateProfile,
-  signOut,
-  onAuthStateChanged
-} from 'firebase/auth';
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp, 
-  query, 
-  where,
-  orderBy 
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { auth, db, storage } from '../firebase';
+import React, { useState } from 'react';
 
-export default function AuthPortal() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userData, setUserData] = useState(null);
-  const [isSignup, setIsSignup] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-
-  const [verifyChannel, setVerifyChannel] = useState('email');
-  const [otpInput, setOtpInput] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
-
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+export default function AuthScreen({ 
+  onLoginSuccess, 
+  onRegisterSuccess, 
+  setCurrentPage, 
+  initialMode = 'signin' // 'signin' or 'register'
+}) {
+  const [isRegistering, setIsRegistering] = useState(initialMode === 'register');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [name, setName] = useState('');
+  const [photoURL, setPhotoURL] = useState('');
+  const [accountType, setAccountType] = useState('solo'); // 'solo' or 'merchant'
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const [activeTab, setActiveTab] = useState('marketplace');
+  // Sample avatar presets for quick selection
+  const presetAvatars = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'
+  ];
 
-  const [products, setProducts] = useState([]);
-  const [myProducts, setMyProducts] = useState([]);
-  const [productName, setProductName] = useState('');
-  const [productPrice, setProductPrice] = useState('');
-  const [productCategory, setProductCategory] = useState('General Goods');
-  const [productDescription, setProductDescription] = useState('');
-  const [productImageFile, setProductImageFile] = useState(null);
-  const [editingProductId, setEditingProductId] = useState(null);
-  const [existingImageUrl, setExistingImageUrl] = useState('');
-
-  // PERSISTENT SESSION LISTENER & DATA SYNC
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
-        await fetchAllData(user.uid);
-      } else {
-        setCurrentUser(null);
-        setUserData(null);
-        await fetchPublicMarketplace();
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const fetchPublicMarketplace = async () => {
-    try {
-      const qAll = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-      const allSnapshot = await getDocs(qAll);
-      const allItems = [];
-      allSnapshot.forEach((docSnap) => {
-        allItems.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      setProducts(allItems);
-    } catch (err) {
-      console.error('Error fetching marketplace products:', err);
-    }
-  };
-
-  const fetchAllData = async (uid) => {
-    try {
-      await fetchPublicMarketplace();
-
-      // Fetch user's specific items
-      const qMine = query(collection(db, 'products'), where('ownerUid', '==', uid));
-      const mineSnapshot = await getDocs(qMine);
-      const mineItems = [];
-      mineSnapshot.forEach((docSnap) => {
-        mineItems.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      setMyProducts(mineItems);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    }
-  };
-
-  const handleSignupSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    if (!firstName.trim() || !lastName.trim()) {
-      setErrorMsg('Please enter your legal first and last name.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match.');
-      return;
-    }
-    if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      await updateProfile(user, {
-        displayName: `${firstName.trim()} ${lastName.trim()}`
-      });
-
-      const initialUserData = {
-        uid: user.uid,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role: email.trim() === 'admin@bold.ng' ? 'ADMIN' : 'CUSTOMER',
-        createdAt: serverTimestamp(),
-        verified: false,
-        verifyChannel
-      };
-
-      await setDoc(doc(db, 'users', user.uid), initialUserData);
-      setUserData(initialUserData);
-
-      if (verifyChannel === 'email') {
-        await sendEmailVerification(user);
-        setSuccessMsg('Account created! Verification link sent to your email.');
-      } else {
-        const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOtp(mockOtp);
-        setSuccessMsg(`[Simulation] OTP sent via ${verifyChannel.toUpperCase()}: ${mockOtp}`);
-      }
-      setLoading(false);
-      setIsVerifying(true);
-    } catch (error) {
-      setLoading(false);
-      setErrorMsg(error.message.replace('Firebase: ', ''));
-    }
-  };
-
-  const handleVerifySubmission = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setLoading(true);
-
-    try {
-      if (verifyChannel === 'email') {
-        await auth.currentUser.reload();
-        if (auth.currentUser.emailVerified) {
-          await updateDoc(doc(db, 'users', auth.currentUser.uid), { verified: true });
-          setUserData(prev => ({ ...prev, verified: true }));
-          setSuccessMsg('Email verified successfully!');
-          setIsVerifying(false);
-        } else {
-          setErrorMsg('Email not verified yet. Please check your inbox.');
-        }
-      } else {
-        if (otpInput.trim() === generatedOtp) {
-          await updateDoc(doc(db, 'users', auth.currentUser.uid), { verified: true });
-          setUserData(prev => ({ ...prev, verified: true }));
-          setSuccessMsg('Contact number verified successfully!');
-          setIsVerifying(false);
-        } else {
-          setErrorMsg('Invalid OTP code.');
-        }
-      }
-    } catch (err) {
-      setErrorMsg('Verification failed.');
-    }
-    setLoading(false);
-  };
-
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
+    setError('');
     setSuccessMsg('');
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        setUserData(userDoc.data());
-      }
-      setLoading(false);
-      setSuccessMsg('Login successful!');
-    } catch (error) {
-      setLoading(false);
-      setErrorMsg('Invalid email or password.');
-    }
-  };
+      if (isRegistering) {
+        // --- REGISTER LOGIC ---
+        if (!name.trim()) throw new Error('Please enter your full name.');
+        if (!email || !password) throw new Error('Please enter email and password.');
+        
+        // Simulating Backend registration call
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        
+        const finalAvatar = photoURL.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
 
-  const handleForgotPasswordSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-    if (!email.trim()) {
-      setErrorMsg('Please enter your account email.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      setLoading(false);
-      setSuccessMsg('Password reset instructions sent to your email.');
-    } catch (error) {
-      setLoading(false);
-      setErrorMsg(error.message.replace('Firebase: ', ''));
-    }
-  };
+        const newUserObject = { 
+          email, 
+          displayName: name.trim(), 
+          photoURL: finalAvatar,
+          uid: 'user_' + Date.now(), 
+          role: accountType, // Passes 'solo' or 'merchant'
+          createdAt: new Date().toISOString()
+        };
 
-  // PRODUCT MANAGEMENT & FIREBASE STORAGE UPLOAD HANDLER
-  const handleProductSubmit = async (e) => {
-    e.preventDefault();
-    if (!currentUser) {
-      setErrorMsg('You must be logged in to upload products.');
-      return;
-    }
-    setErrorMsg('');
-    setLoading(true);
-    try {
-      let finalImageUrl = existingImageUrl;
-
-      if (productImageFile) {
-        const imageRef = ref(storage, `product_images/${currentUser.uid}_${Date.now()}_${productImageFile.name}`);
-        const snapshot = await uploadBytes(imageRef, productImageFile);
-        finalImageUrl = await getDownloadURL(snapshot.ref);
-      } else if (!editingProductId && !finalImageUrl) {
-        setErrorMsg('Please select a product image file.');
-        setLoading(false);
-        return;
-      }
-
-      if (editingProductId) {
-        const productRef = doc(db, 'products', editingProductId);
-        await updateDoc(productRef, {
-          name: productName,
-          price: Number(productPrice),
-          category: productCategory,
-          description: productDescription,
-          image: finalImageUrl
-        });
-        setSuccessMsg('Product updated successfully!');
-        setEditingProductId(null);
-      } else {
-        await addDoc(collection(db, 'products'), {
-          name: productName,
-          price: Number(productPrice),
-          category: productCategory,
-          description: productDescription,
-          image: finalImageUrl,
-          ownerUid: currentUser.uid,
-          ownerName: `${userData?.firstName || 'Vendor'} ${userData?.lastName || ''}`,
-          isPromoted: false,
-          createdAt: serverTimestamp()
-        });
-        setSuccessMsg('Product uploaded successfully!');
-      }
-
-      setProductName('');
-      setProductPrice('');
-      setProductDescription('');
-      setProductImageFile(null);
-      setExistingImageUrl('');
-      setLoading(false);
-      await fetchAllData(currentUser.uid);
-      setActiveTab('my-products');
-    } catch (err) {
-      setLoading(false);
-      setErrorMsg('Failed to save product or upload image.');
-      console.error(err);
-    }
-  };
-
-  const handleBuyProduct = (product) => {
-    if (!currentUser) {
-      alert('Please log in or sign up to buy products on bold.ng!');
-      // Force view back to auth portal
-      return;
-    }
-    window.alert(`Proceeding to checkout for "${product.name}" priced at ₦${product.price?.toLocaleString()}!`);
-  };
-
-  const handlePromoteProduct = async (product) => {
-    const confirmPromote = window.confirm(`Promote "${product.name}" for ₦1,000 ad boost fee?`);
-    if (!confirmPromote) return;
-
-    setLoading(true);
-    try {
-      const productRef = doc(db, 'products', product.id);
-      await updateDoc(productRef, {
-        isPromoted: true,
-        promotedAt: serverTimestamp()
-      });
-      setSuccessMsg(`🚀 Successfully promoted "${product.name}" for ₦1,000!`);
-      await fetchAllData(currentUser.uid);
-    } catch (err) {
-      setErrorMsg('Promotion payment simulation failed.');
-    }
-    setLoading(false);
-  };
-
-  const handleEditProduct = (item) => {
-    setEditingProductId(item.id);
-    setProductName(item.name);
-    setProductPrice(item.price);
-    setProductCategory(item.category);
-    setProductDescription(item.description);
-    setExistingImageUrl(item.image);
-    setProductImageFile(null);
-    setActiveTab('upload');
-  };
-
-  const handleDeleteProduct = async (item) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        if (item.image && item.image.includes('firebasestorage.googleapis.com')) {
-          const imageRef = ref(storage, item.image);
-          await deleteObject(imageRef).catch((err) => console.log(err));
+        if (typeof onRegisterSuccess === 'function') {
+          onRegisterSuccess(newUserObject);
         }
-        await deleteDoc(doc(db, 'products', item.id));
-        setSuccessMsg('Product deleted successfully.');
-        await fetchAllData(currentUser.uid);
-      } catch (err) {
-        setErrorMsg('Failed to delete product.');
+
+        setSuccessMsg(`Welcome, ${name.trim()}! Account created successfully.`);
+        
+        // Keep them on success notice for 1.2s, then take them straight to dashboard
+        setTimeout(() => {
+          setCurrentPage('dashboard');
+        }, 1200);
+
+      } else {
+        // --- LOGIN LOGIC ---
+        if (!email || !password) throw new Error('Please enter your email and password.');
+        
+        // Simulating Backend login call
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Extract clean display name from email if name wasn't stored
+        const derivedName = email.split('@')[0];
+        const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
+
+        const loggedInUserObject = { 
+          email, 
+          displayName: formattedName, 
+          photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+          uid: 'user_' + Date.now(),
+          role: 'solo',
+          createdAt: new Date().toISOString()
+        };
+
+        if (typeof onLoginSuccess === 'function') {
+          onLoginSuccess(loggedInUserObject);
+        }
+
+        setSuccessMsg(`Sign in successful! Welcome back, ${formattedName}.`);
+        
+        // Short delay to show success notice before routing to dashboard like Amazon
+        setTimeout(() => {
+          setCurrentPage('dashboard');
+        }, 1200);
       }
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please check your details.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
-
-  // ==========================================
-  // VIEW 1: LOGGED-IN CUSTOM DASHBOARD
-  // ==========================================
-  if (currentUser) {
-    return (
-      <div className="min-h-screen bg-[#070D1F] text-white p-6 font-sans">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center bg-[#16223F] border border-slate-700 p-4 rounded-2xl mb-6 shadow-xl gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FF5A00] rounded-xl flex items-center font-black text-lg justify-center shadow-lg">B</div>
-            <div>
-              <h2 className="font-bold text-sm">Welcome, {userData?.firstName || 'User'} {userData?.lastName || ''}</h2>
-              <p className="text-[10px] text-slate-400 font-mono">Role: {userData?.role || 'CUSTOMER'} | Status: {userData?.verified ? '✅ Verified' : '⚠️ Pending'}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button 
-              onClick={() => setActiveTab('marketplace')} 
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'marketplace' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] text-slate-300 hover:bg-slate-800'}`}
-            >
-              🛒 Marketplace
-            </button>
-            <button 
-              onClick={() => setActiveTab('my-products')} 
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'my-products' ? 'bg-[#FF5A00] text-white' : 'bg-[#0B132B] text-slate-300 hover:bg-slate-800'}`}
-            >
-              📦 My Inventory ({myProducts.length})
-            </button>
-            <button 
-              onClick={handleLogout} 
-              className="px-4 py-2 bg-red-950/80 border border-red-500/40 hover:bg-red-900 text-red-300 rounded-xl text-xs font-bold transition cursor-pointer ml-2"
-            >
-              Log Out 🚪
-            </button>
-          </div>
-        </div>
-
-        <div className="max-w-6xl mx-auto mb-4">
-          {errorMsg && <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-red-400 text-xs font-mono">⚠️ {errorMsg}</div>}
-          {successMsg && <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-400 text-xs font-mono">✅ {successMsg}</div>}
-        </div>
-
-        <div className="max-w-6xl mx-auto">
-          {activeTab === 'marketplace' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-black tracking-tight uppercase">Bold.ng Global Marketplace</h3>
-                <button 
-                  onClick={() => setActiveTab('upload')}
-                  className="bg-[#FF5A00] hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  ➕ Upload New Product
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {products.length === 0 ? (
-                  <p className="text-xs text-slate-400 font-mono py-8">No products found in marketplace.</p>
-                ) : (
-                  products.map((item) => (
-                    <div key={item.id} className={`bg-[#16223F] border ${item.isPromoted ? 'border-[#FF5A00]' : 'border-slate-700'} rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between relative`}>
-                      {item.isPromoted && (
-                        <div className="absolute top-2 right-2 bg-[#FF5A00] text-white text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full shadow">
-                          🔥 PROMOTED AD
-                        </div>
-                      )}
-                      <img src={item.image} alt={item.name} className="w-full h-48 object-cover bg-slate-800" />
-                      <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-sm">{item.name}</h4>
-                            <span className="text-[10px] bg-[#FF5A00]/20 text-[#FF5A00] font-mono px-2 py-0.5 rounded-full">{item.category}</span>
-                          </div>
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.description || 'No description provided.'}</p>
-                        </div>
-                        <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
-                          <span className="text-sm font-mono font-bold text-[#FF5A00]">₦{item.price?.toLocaleString()}</span>
-                          <button 
-                            onClick={() => handleBuyProduct(item)}
-                            className="bg-[#FF5A00] hover:bg-orange-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition cursor-pointer"
-                          >
-                            Buy Product 🛒
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'my-products' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-black tracking-tight uppercase">My Inventory & Dashboard Management</h3>
-                <button 
-                  onClick={() => { 
-                    setEditingProductId(null); 
-                    setProductName(''); 
-                    setProductPrice(''); 
-                    setProductCategory('General Goods');
-                    setProductDescription(''); 
-                    setProductImageFile(null);
-                    setExistingImageUrl(''); 
-                    setActiveTab('upload'); 
-                  }} 
-                  className="bg-[#FF5A00] hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-lg"
-                >
-                  ➕ Upload New Product
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {myProducts.length === 0 ? (
-                  <p className="text-xs text-slate-400 font-mono py-8">You haven't uploaded any products yet.</p>
-                ) : (
-                  myProducts.map((item) => (
-                    <div key={item.id} className={`bg-[#16223F] border ${item.isPromoted ? 'border-[#FF5A00]' : 'border-slate-700'} rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between relative`}>
-                      <img src={item.image} alt={item.name} className="w-full h-48 object-cover bg-slate-800" />
-                      <div className="p-4 space-y-2">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-sm">{item.name}</h4>
-                          <span className="text-sm font-mono font-bold text-[#FF5A00]">₦{item.price?.toLocaleString()}</span>
-                        </div>
-                        <p className="text-xs text-slate-400">{item.description}</p>
-                      </div>
-                      
-                      <div className="p-4 pt-0 space-y-2">
-                        {!item.isPromoted ? (
-                          <button 
-                            onClick={() => handlePromoteProduct(item)}
-                            className="w-full bg-[#FF5A00] hover:bg-orange-600 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-md"
-                          >
-                            🚀 Promote Product (₦1,000)
-                          </button>
-                        ) : (
-                          <div className="w-full bg-orange-950/50 border border-[#FF5A00]/40 text-[#FF5A00] py-2 rounded-xl text-center text-xs font-mono font-bold">
-                            Ad Boost Active ✅
-                          </div>
-                        )}
-
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditProduct(item)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold transition cursor-pointer">Edit ✏️</button>
-                          <button onClick={() => handleDeleteProduct(item)} className="flex-1 bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-300 py-2 rounded-xl text-xs font-bold transition cursor-pointer">Delete 🗑️</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'upload' && (
-            <div className="max-w-xl mx-auto bg-[#16223F] border border-slate-700 rounded-3xl p-8 shadow-2xl">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-black tracking-tight uppercase">{editingProductId ? 'Edit Product' : 'Upload New Product'}</h3>
-                <button onClick={() => setActiveTab('my-products')} className="text-xs text-slate-400 hover:text-white font-mono cursor-pointer">← Back</button>
-              </div>
-              <form onSubmit={handleProductSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Name</label>
-                  <input type="text" placeholder="Enter product name" value={productName} onChange={(e) => setProductName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Price (₦)</label>
-                    <input type="number" placeholder="0.00" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Category</label>
-                    <select value={productCategory} onChange={(e) => setProductCategory(e.target.value)} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer">
-                      <option value="General Goods">General Goods</option>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Fashion & Wear">Fashion & Wear</option>
-                      <option value="Industrial & Building">Industrial & Building</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Product Image File</label>
-                  <input type="file" accept="image/*" onChange={(e) => setProductImageFile(e.target.files[0])} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FF5A00] file:text-white" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Description</label>
-                  <textarea rows="3" placeholder="Enter product details..." value={productDescription} onChange={(e) => setProductDescription(e.target.value)} className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition cursor-pointer mt-2">
-                  {loading ? 'Saving...' : editingProductId ? 'Update Listing' : 'Publish Product'}
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // VIEW 2: AUTH GATEWAY / GUEST WALL (FORCES LOGIN)
-  // ==========================================
   return (
-    <div className="relative min-h-screen bg-[#070D1F] flex flex-col items-center justify-center p-4 font-sans text-white overflow-hidden">
-      {/* Top Banner for Unauthenticated Visitors viewing Marketplace highlights */}
-      <div className="absolute top-4 left-4 right-4 max-w-4xl mx-auto flex justify-between items-center bg-[#16223F] border border-slate-700 p-4 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#FF5A00] rounded-xl flex items-center font-black text-sm justify-center">B</div>
-          <span className="font-bold text-xs uppercase tracking-wider">Bold.ng Marketplace Access Restricted</span>
+    <div className="min-h-screen bg-white text-[#0f1111] flex flex-col justify-between font-sans selection:bg-[#febd69]">
+      
+      {/* Amazon Style Minimal Header */}
+      <header className="py-6 flex flex-col items-center justify-center border-b border-slate-200">
+        <div 
+          onClick={() => setCurrentPage('marketplace')}
+          className="cursor-pointer flex items-baseline tracking-tighter"
+        >
+          <span className="text-3xl font-black text-[#131921]">bold</span>
+          <span className="text-3xl font-black text-[#ff9900]">.ng</span>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => { setIsSignup(false); setIsForgotPassword(false); setIsVerifying(false); }}
-            className="px-3 py-1.5 bg-[#0B132B] hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-300"
-          >
-            Sign In
-          </button>
-          <button 
-            onClick={() => { setIsSignup(true); setIsForgotPassword(false); setIsVerifying(false); }}
-            className="px-3 py-1.5 bg-[#FF5A00] hover:bg-orange-600 rounded-xl text-xs font-bold text-white"
-          >
-            Create Account
-          </button>
-        </div>
-      </div>
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+          Secure Marketplace Authentication
+        </span>
+      </header>
 
-      <div className="relative z-10 w-full max-w-md bg-[#16223F]/95 backdrop-blur-md border border-slate-700/80 rounded-3xl p-8 shadow-2xl space-y-6 mt-16">
-        <div className="text-center space-y-1">
-          <div className="inline-block px-3 py-1 bg-[#FF5A00]/10 text-[#FF5A00] font-mono text-[10px] font-black uppercase tracking-widest rounded-full border border-[#FF5A00]/20 mb-2">
-            Secure Auth Gateway
-          </div>
-          <h1 className="text-2xl font-black uppercase tracking-tight">
-            {isVerifying ? 'Channel Verification' : isForgotPassword ? 'Reset Password' : isSignup ? 'Create Account' : 'Welcome Back'}
+      {/* Main Authentication Card */}
+      <main className="w-full max-w-sm mx-auto px-4 py-8 flex-1 flex flex-col justify-center">
+        <div className="border border-slate-300 rounded-xl p-6 sm:p-8 shadow-xs bg-white space-y-5">
+          <h1 className="text-2xl font-normal text-[#0f1111] tracking-tight">
+            {isRegistering ? 'Create account' : 'Sign in'}
           </h1>
-          <p className="text-xs text-slate-400">
-            {isVerifying ? `Enter verification details for (${verifyChannel.toUpperCase()})` : isForgotPassword ? 'Recover your account safely' : isSignup ? 'Register your profile to upload & buy on bold.ng' : 'Sign in to access your custom dashboard'}
-          </p>
-        </div>
 
-        {errorMsg && <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-red-400 text-xs font-mono">⚠️ {errorMsg}</div>}
-        {successMsg && <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-400 text-xs font-mono">✅ {successMsg}</div>}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-bold flex items-start gap-2">
+              <span className="text-sm">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
 
-        {isVerifying ? (
-          <form onSubmit={handleVerifySubmission} className="space-y-4">
-            <div className="p-4 bg-[#0B132B] border border-slate-700 rounded-2xl space-y-3">
-              <p className="text-xs text-slate-300">
-                {verifyChannel === 'email' ? `Verification link sent to ${email}. Check your inbox.` : `Enter OTP code sent via ${verifyChannel.toUpperCase()}:`}
-              </p>
-              {verifyChannel !== 'email' && (
-                <input type="text" placeholder="123456" value={otpInput} onChange={(e) => setOtpInput(e.target.value)} maxLength={6} required className="w-full bg-[#16223F] border border-slate-700 rounded-xl px-4 py-3 text-center text-lg tracking-widest text-white font-mono focus:border-[#FF5A00] outline-none" />
-              )}
+          {successMsg && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-bold flex items-start gap-2 animate-pulse">
+              <span className="text-sm">✓</span>
+              <span>{successMsg} Redirecting to dashboard...</span>
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer">
-              {loading ? 'Verifying...' : 'Confirm & Complete'}
-            </button>
-          </form>
-        ) : isForgotPassword ? (
-          <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Account Email</label>
-              <input type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
-            </div>
-            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer">
-              {loading ? 'Sending...' : 'Send Password Reset Link'}
-            </button>
-            <button type="button" onClick={() => { setIsForgotPassword(false); setErrorMsg(''); setSuccessMsg(''); }} className="w-full text-center text-xs text-slate-400 hover:text-white pt-2 cursor-pointer font-mono">
-              ← Back to Sign In
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={isSignup ? handleSignupSubmit : handleLoginSubmit} className="space-y-4">
-            {isSignup && (
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 font-mono">First Name</label>
-                    <input type="text" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Last Name</label>
-                    <input type="text" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 block">Your name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="First and last name"
+                    className="w-full bg-white border border-slate-400 focus:border-[#e77600] focus:ring-1 focus:ring-[#e77600] outline-none rounded-md px-3 py-2 text-sm text-[#0f1111]"
+                    required={isRegistering}
+                  />
+                </div>
+
+                {/* Profile Picture / Avatar URL Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 block">Profile Image URL (Optional)</label>
+                  <input
+                    type="url"
+                    value={photoURL}
+                    onChange={(e) => setPhotoURL(e.target.value)}
+                    placeholder="https://example.com/avatar.jpg"
+                    className="w-full bg-white border border-slate-400 focus:border-[#e77600] focus:ring-1 focus:ring-[#e77600] outline-none rounded-md px-3 py-2 text-xs text-[#0f1111]"
+                  />
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-slate-500">Quick presets:</span>
+                    <div className="flex gap-1.5">
+                      {presetAvatars.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img}
+                          alt="preset"
+                          onClick={() => setPhotoURL(img)}
+                          className="w-6 h-6 rounded-full cursor-pointer hover:ring-2 hover:ring-[#ff9900] object-cover"
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Contact Phone / WhatsApp</label>
-                  <input type="tel" placeholder="+234..." value={phone} onChange={(e) => setPhone(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-3 py-3 text-xs text-white focus:border-[#FF5A00] outline-none font-mono" />
+
+                {/* Account Type Selector Toggle */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-800 block">Select account type:</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountType('solo')}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        accountType === 'solo' 
+                          ? 'bg-[#20b2aa]/10 border-[#20b2aa] text-[#20b2aa]' 
+                          : 'bg-white border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      👤 Solo Seller
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountType('merchant')}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        accountType === 'merchant' 
+                          ? 'bg-[#f68b1e]/10 border-[#f68b1e] text-[#f68b1e]' 
+                          : 'bg-white border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      🏢 Merchant
+                    </button>
+                  </div>
                 </div>
               </>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Email Address</label>
-              <input type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
+              <label className="text-xs font-bold text-slate-800 block">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                className="w-full bg-white border border-slate-400 focus:border-[#e77600] focus:ring-1 focus:ring-[#e77600] outline-none rounded-md px-3 py-2 text-sm text-[#0f1111]"
+                required
+              />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Password</label>
-              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800 block">Password</label>
+                {!isRegistering && (
+                  <span className="text-xs text-[#0066c0] hover:underline cursor-pointer">
+                    Forgot password?
+                  </span>
+                )}
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isRegistering ? 'At least 6 characters' : 'Enter your password'}
+                className="w-full bg-white border border-slate-400 focus:border-[#e77600] focus:ring-1 focus:ring-[#e77600] outline-none rounded-md px-3 py-2 text-sm text-[#0f1111]"
+                required
+              />
             </div>
 
-            {isSignup && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-slate-400 font-mono">Confirm Password</label>
-                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="w-full bg-[#0B132B] border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-[#FF5A00] outline-none" />
-              </div>
-            )}
-
-            {!isSignup && (
-              <div className="flex justify-end">
-                <button type="button" onClick={() => { setIsForgotPassword(true); setErrorMsg(''); setSuccessMsg(''); }} className="text-[11px] text-slate-400 hover:text-[#FF5A00] font-mono cursor-pointer">
-                  Forgot Password?
-                </button>
-              </div>
-            )}
-
-            <button type="submit" disabled={loading} className="w-full bg-[#FF5A00] hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer mt-2">
-              {loading ? 'Please wait...' : isSignup ? 'Create Account & Continue' : 'Sign In to Dashboard'}
+            {/* Signature Amazon Yellow CTA Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#ffd814] hover:bg-[#f7ca00] active:bg-[#f0b800] border border-[#fcd200] text-[#0f1111] font-medium text-sm py-2.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 mt-2"
+            >
+              {loading ? 'Please wait...' : (isRegistering ? 'Continue & Verify Email' : 'Sign In')}
             </button>
-
-            <div className="text-center pt-2">
-              <button type="button" onClick={() => { setIsSignup(!isSignup); setErrorMsg(''); setSuccessMsg(''); }} className="text-xs text-slate-400 hover:text-white font-mono cursor-pointer">
-                {isSignup ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-              </button>
-            </div>
           </form>
-        )}
-      </div>
+
+          <p className="text-[11px] text-slate-600 leading-relaxed pt-2">
+            By continuing, you agree to bold.ng's <span className="text-[#0066c0] hover:underline cursor-pointer">Conditions of Use</span> and <span className="text-[#0066c0] hover:underline cursor-pointer">Privacy Notice</span>.
+          </p>
+        </div>
+
+        {/* Divider & Switch Mode Section */}
+        <div className="mt-6 text-center">
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink mx-4 text-xs text-slate-500 uppercase tracking-wider">
+              {isRegistering ? 'Already have an account?' : 'New to bold.ng?'}
+            </span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setError('');
+              setSuccessMsg('');
+            }}
+            className="w-full mt-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-[#0f1111] font-medium text-sm py-2.5 rounded-lg transition-colors cursor-pointer shadow-xs"
+          >
+            {isRegistering ? 'Sign in to your bold.ng account' : 'Create your bold.ng account'}
+          </button>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-[#f8f9fa] border-t border-slate-200 py-6 text-center text-[11px] text-slate-500 space-y-2">
+        <div className="flex justify-center space-x-6">
+          <span className="hover:underline cursor-pointer text-[#0066c0]">Conditions of Use</span>
+          <span className="hover:underline cursor-pointer text-[#0066c0]">Privacy Notice</span>
+          <span className="hover:underline cursor-pointer text-[#0066c0]">Help</span>
+        </div>
+        <p>© 1996-{new Date().getFullYear()}, Bold Dot NG Marketplace, Inc. or its affiliates.</p>
+      </footer>
     </div>
   );
 }
